@@ -409,7 +409,7 @@ void zp_trace_callback_mysqli_connect(char *symbol, zend_execute_data *data TSRM
     zval *arg;
 
     if (ZEND_CALL_NUM_ARGS(data) < 1) {
-        return idx;
+        return;
     }
 
     //idx = zp_span_create("sql", 3 TSRMLS_CC);
@@ -998,7 +998,6 @@ static void hp_clean_profiler_options_state(TSRMLS_D)
             (cur_entry)->hash_code = hash_code;                                 \
             (cur_entry)->name_hprof = symbol;                                   \
             (cur_entry)->prev_hprof = (*(entries));                             \
-            (cur_entry)->span_id = -1;                                          \
             hp_mode_hier_beginfn_cb((entries), (cur_entry), execute_data TSRMLS_CC);            \
             /* Update entries linked list */                                    \
             (*(entries)) = (cur_entry);                                         \
@@ -1508,7 +1507,7 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     wt = get_us_from_tsc(tsc_end - top->tsc_start TSRMLS_CC);
 
     // 可以考虑只记录执行时间大于 0.1 ms的函数
-    if (wt >= TWG(stack_threshold)) { // 0.1ms
+    if (wt >= ZP_G(stack_threshold)) { // 0.1ms
     }
 
     if (ZP_G(zprof_flags) & ZPROF_FLAGS_CPU) {
