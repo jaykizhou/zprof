@@ -160,6 +160,54 @@ static zend_always_inline long zend_compat_hash_find_long(HashTable *ht, char *k
     return -1;
 }
 
+static zend_always_inline print_zval_type(zval *zv)
+{
+    int tlen = 0;
+    char *tstr = NULL;
+    
+    switch(Z_TYPE_P(zv)) {
+        case IS_BOOL:
+            if (Z_LVAL_P(zv)) {
+                php_printf("zval type is true\n");
+            } else {
+                php_printf("zval type is false\n");
+            }
+            break;
+        case IS_NULL:
+            php_printf("zval type is null\n");
+            break;
+        case IS_LONG:
+            php_printf("zval type is long, value is %ld\n", Z_LVAL_P(zv));
+            break;
+        case IS_DOUBLE:
+            php_printf("zval type is double, value is %lf\n", Z_DVAL_P(zv));
+            break;
+        case IS_STRING:
+            php_printf("zval type is string, value is %s\n", Z_STRVAL_P(zv));
+            break;
+        case IS_ARRAY:
+            php_printf("zval type is array, value is array(%d)\n", zend_hash_num_elements(Z_ARRVAL_P(zv)));
+            break;
+        case IS_OBJECT:
+            if (Z_OBJ_HANDLER(*zv, get_class_name)) {
+                Z_OBJ_HANDLER(*zv, get_class_name)(zv, (const char **) &tstr, (zend_uint *) &tlen, 0 TSRMLS_CC);
+                php_printf("zval type is object, value is object(%s)#%d\n", tstr, Z_OBJ_HANDLE_P(zv));
+                efree(tstr);
+            } else {
+                php_printf("zval type is object, value is object(unknown)#%d\n", Z_OBJ_HANDLE_P(zv));
+            }
+            break;
+        case IS_RESOURCE:
+            tstr = (char *) zend_rsrc_list_get_rsrc_type(Z_LVAL_P(zv) TSRMLS_CC); 
+            php_printf("zval type is resource, value is resource(%s)#%ld\n", tstr ? tstr : "Unknown", Z_LVAL_P(zv));
+            break;
+        default:
+            php_printf("zval type is unknown\n");
+            break;
+      
+    }
+}
+
 typedef void (*zp_trace_callback)(char *symbol, zend_execute_data *data TSRMLS_DC);
 
 #if PHP_VERSION_ID < 50500
@@ -1714,6 +1762,10 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
 #endif
     char *func = NULL;
     int hp_profile_flag = 1;
+    int argNum = 0;
+    int i = 0;
+    zval *argument;
+    zval *result;
 
     if (!ZP_G(enabled))
     {
@@ -1749,6 +1801,18 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
     }
 
     BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, real_execute_data);
+
+    // 获取函数参数
+    if(real_execute_data) {
+        argNum = ZEND_CALL_NUM_ARGS(data);
+        if (argNum > 0) {
+            for (i = 0; i < args_len; i++) {
+                argument = ZEND_CALL_ARG(data, i+1);
+                print_zval_type(argument);
+            }
+        }         
+    }
+
 #if PHP_VERSION_ID < 50500
     _zend_execute(ops TSRMLS_CC);
 #else
@@ -1758,6 +1822,15 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
     {
         END_PROFILING(&ZP_G(entries), hp_profile_flag, real_execute_data);
     }
+
+    // 获取函数返回值
+    if(EG(return_value_ptr_ptr)) {                                                                                                                                                                                                                           
+        //php_printf("function return value:\n");
+        //php_var_dump(EG(return_value_ptr_ptr), 1 TSRMLS_DC);
+        zval *result = (zval *)(*EG(return_value_ptr_ptr));
+        print_zval_type(result);
+    }
+    
     efree(func);
 }
 
