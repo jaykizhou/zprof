@@ -1803,15 +1803,13 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
     BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, real_execute_data);
 
     // 获取函数参数
-    if(real_execute_data) {
-        argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
-        if (argNum > 0) {
-            for (i = 0; i < argNum; i++) {
-                argument = ZEND_CALL_ARG(real_execute_data, i + 1);
-                print_zval_type(argument);
-            }
-        }         
-    }
+    argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
+    if (argNum > 0) {
+        for (i = 0; i < argNum; i++) {
+            argument = ZEND_CALL_ARG(real_execute_data, i + 1);
+            print_zval_type(argument);
+        }
+    }         
 
 #if PHP_VERSION_ID < 50500
     _zend_execute(ops TSRMLS_CC);
