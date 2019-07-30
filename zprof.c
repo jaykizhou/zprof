@@ -1804,10 +1804,10 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
 
     // 获取函数参数
     if(real_execute_data) {
-        argNum = ZEND_CALL_NUM_ARGS(data);
+        argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
         if (argNum > 0) {
-            for (i = 0; i < args_len; i++) {
-                argument = ZEND_CALL_ARG(data, i+1);
+            for (i = 0; i < argNum; i++) {
+                argument = ZEND_CALL_ARG(real_execute_data, i + 1);
                 print_zval_type(argument);
             }
         }         
@@ -1859,6 +1859,9 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
 #endif
     char *func = NULL;
     int hp_profile_flag = 1;
+    int argNum = 0;
+    zval *argument, *result;
+    int i = 0;
 
     if (!ZP_G(enabled) || (ZP_G(zprof_flags) & ZPROF_FLAGS_NO_BUILTINS) > 0)
     {
@@ -1877,6 +1880,15 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
     if (func)
     {
         BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, execute_data);
+
+        // 获取函数参数
+        argNum = ZEND_CALL_NUM_ARGS(execute_data);
+        if (argNum > 0) {
+            for (i = 0; i < argNum; i++) {
+                argument = ZEND_CALL_ARG(execute_data, i + 1);
+                print_zval_type(argument);
+            }
+        }         
     }
 
     if (!_zend_execute_internal)
@@ -1903,6 +1915,16 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
         {
             END_PROFILING(&ZP_G(entries), hp_profile_flag, execute_data);
         }
+
+
+        // 获取函数返回值
+        if(EG(return_value_ptr_ptr)) {                                                                                                                                                                                                                           
+            //php_printf("function return value:\n");
+            //php_var_dump(EG(return_value_ptr_ptr), 1 TSRMLS_DC);
+            zval *result = (zval *)(*EG(return_value_ptr_ptr));
+            print_zval_type(result);
+        }
+
         efree(func);
     }
 }
@@ -1922,8 +1944,7 @@ ZEND_DLEXPORT zend_op_array *hp_compile_file(zend_file_handle *file_handle, int 
     zend_op_array *ret;
     uint64 start = cycle_timer();
 
-    ZP_G(compile_count)
-    ++;
+    ZP_G(compile_count)++;
 
     ret = _zend_compile_file(file_handle, type TSRMLS_CC);
 
@@ -1945,8 +1966,7 @@ ZEND_DLEXPORT zend_op_array *hp_compile_string(zval *source_string, char *filena
     zend_op_array *ret;
     uint64 start = cycle_timer();
 
-    ZP_G(compile_count)
-    ++;
+    ZP_G(compile_count)++;
 
     ret = _zend_compile_string(source_string, filename TSRMLS_CC);
 
@@ -2001,7 +2021,7 @@ void zp_error_cb(int type, const char *error_filename, const uint error_lineno, 
         php_printf("%s - type:%d - file:%s - line:%d - msg:%s\n", "Error", type, (char *)error_filename, error_lineno, msg);
     }
     else if (type == E_WARNING || type == E_CORE_WARNING || type == E_COMPILE_WARNING || type == E_USER_WARNING) {
-        php_printf("%s - type:%d - file:%s - line:%d - msg:%s\n", "Warning", type, (char *)error_filename, error_lineno, msgC);
+        php_printf("%s - type:%d - file:%s - line:%d - msg:%s\n", "Warning", type, (char *)error_filename, error_lineno, msg);
     }
     else if (type == E_NOTICE || type == E_USER_NOTICE || type == E_STRICT || type == E_DEPRECATED || type == E_USER_DEPRECATED) {
         php_printf("%s - type:%d - file:%s - line:%d - msg:%s\n", "Notice", type, (char *)error_filename, error_lineno, msg);
