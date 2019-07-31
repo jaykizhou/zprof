@@ -135,11 +135,11 @@ ZEND_BEGIN_MODULE_GLOBALS(hp)
     HashTable *trace_callbacks; 
     
     /* Holds all the Zprof statistics */
-    zval            *stats_count;
-    zval            *debug_trace;
-    zval            *exceptions;
-    zval            *errors;
-    zval            *trace;
+    zval            *stats_count;       // 保存所有函数的消耗时间、内存等性能分析数据
+    zval            *debug_trace;       // 保存所有函数的参数及返回值 
+    zval            *exceptions;        // 保存执行中所有异常信息
+    zval            *errors;            // 保存执行中所有错误信息
+    zval            *trace;             // 保存所有sql、redis等特殊函数执行信息,如sql语句
 
     /* Top of the profile stack */
     hp_entry_t      *entries;
