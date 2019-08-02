@@ -106,8 +106,8 @@ typedef struct hp_entry_t {
     long int                pmu_start_hprof;              /* peak memory usage */
     struct hp_entry_t      *prev_hprof;    /* ptr to prev entry being profiled */
     uint8                   hash_code;     /* hash_code for the function name  */
-    zval                   **debugtrace;    // 记录函数调用的参数及返回值
-    char                    *trace_name;
+    zval                  **debugtrace;    // 记录函数调用的参数及返回值
+    int                     seq_no;        // 函数调用序号,即第几个调用
 } hp_entry_t;
 
 typedef struct hp_function_map {
@@ -148,6 +148,8 @@ ZEND_BEGIN_MODULE_GLOBALS(hp)
 
     /* freelist of hp_entry_t chunks for reuse... */
     hp_entry_t      *entry_free_list;
+
+    int             function_nums;      // 函数调用总次数 
 
     char            *root;
 

@@ -352,8 +352,7 @@ PHP_INI_END()
 /* Init module */
 ZEND_GET_MODULE(zprof)
 
-PHP_GINIT_FUNCTION(hp)
-{
+PHP_GINIT_FUNCTION(hp) {
     hp_globals->enabled = 0;
     hp_globals->ever_enabled = 0;
     hp_globals->zprof_flags = 0;
@@ -375,6 +374,8 @@ PHP_GINIT_FUNCTION(hp)
     hp_globals->cpu_start = 0;
     hp_globals->start_time = 0;
     hp_globals->stack_threshold = 0.1;
+
+    hp_globals->function_nums = 0;
 }
 
 PHP_GSHUTDOWN_FUNCTION(hp)
@@ -1110,6 +1111,7 @@ void hp_clean_profiler_state(TSRMLS_D)
 
     ZP_G(entries) = NULL;
     ZP_G(ever_enabled) = 0;
+    ZP_G(function_nums) = 0;
 
     hp_clean_profiler_options_state(TSRMLS_C);
 }
@@ -1147,6 +1149,7 @@ static void hp_clean_profiler_options_state(TSRMLS_D)
             (cur_entry)->hash_code = hash_code;                                      \
             (cur_entry)->name_hprof = symbol;                                        \
             (cur_entry)->debugtrace = NULL;                                          \
+            (cur_entry)->seq_no = ZP_G(function_nums);                                \
             (cur_entry)->prev_hprof = (*(entries));                                  \
             hp_mode_hier_beginfn_cb((entries), (cur_entry), execute_data TSRMLS_CC); \
             /* Update entries linked list */                                         \
@@ -1709,11 +1712,11 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     hp_get_function_stack(top, 2, symbol, sizeof(symbol));
 
     // 保存获取到的函数名字符长度
-    len = strlen(symbol); 
+    //len = strlen(symbol); 
 
     // 将函数参数和返回值,写入ZP_G(debug_trace)中
     if(top->debugtrace) {
-        i = 0;
+        /*i = 0;
         while(1) {
             counts = zend_compat_hash_find_const(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol));
             if(counts == NULL) {
@@ -1723,11 +1726,13 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
             i++;
             snprintf(symbol, sizeof(symbol), "%s:%d", symbol, i);
         }
+        */
 
-        zend_hash_update(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol) + 1, top->debugtrace, sizeof(zval *), NULL);
+        //zend_hash_update(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol) + 1, top->debugtrace, sizeof(zval *), NULL);
+        zend_hash_index_update(Z_ARRVAL_P(ZP_G(debug_trace)), (long)top->seq_no, top->debugtrace, sizeof(zval *), NULL);
 
         // 恢复之前函数名
-        symbol[len] = '\0';
+        //symbol[len] = '\0';
     }
 
     /* Get end tsc counter */
@@ -1833,6 +1838,9 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
         return;
     }
 
+    // 函数调用总次数加1
+    ZP_G(function_nums)++;
+
     func = hp_get_function_name(real_execute_data TSRMLS_CC);
 
     if (!func)
@@ -1843,7 +1851,7 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
         _zend_execute_ex(execute_data TSRMLS_CC);
 #endif
         return;
-    }
+    } 
 
     if ((ZP_G(zprof_flags) & ZPROF_FLAGS_NO_USERLAND) > 0)
     {
