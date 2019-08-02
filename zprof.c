@@ -2324,8 +2324,6 @@ PHP_FUNCTION(zprof_enable)
  */
 PHP_FUNCTION(zprof_disable)
 {
-    zval *ret;
-
     if (!ZP_G(enabled))
     {
         return;
@@ -2333,11 +2331,11 @@ PHP_FUNCTION(zprof_disable)
 
     hp_stop(TSRMLS_C);
 
-    MAKE_STD_ZVAL(ret);
-    array_init(ret);
+    // 把返回值初始化为数组
+    array_init(return_value);
 
-    add_assoc_zval(ret, "profile", ZP_G(stats_count));
-    add_assoc_zval(ret, "debugtrace", ZP_G(debug_trace));
+    add_assoc_zval(return_value, "profile", ZP_G(stats_count));
+    add_assoc_zval(return_value, "debugtrace", ZP_G(debug_trace));
 
-    RETURN_ZVAL(ret, 1, 0);
+    return;
 }
