@@ -106,6 +106,7 @@ typedef struct hp_entry_t {
     long int                pmu_start_hprof;              /* peak memory usage */
     struct hp_entry_t      *prev_hprof;    /* ptr to prev entry being profiled */
     uint8                   hash_code;     /* hash_code for the function name  */
+    zval                   **debugtrace;    // 记录函数调用的参数及返回值
 } hp_entry_t;
 
 typedef struct hp_function_map {

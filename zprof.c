@@ -1146,6 +1146,7 @@ static void hp_clean_profiler_options_state(TSRMLS_D)
             hp_entry_t *cur_entry = hp_fast_alloc_hprof_entry(TSRMLS_C);             \
             (cur_entry)->hash_code = hash_code;                                      \
             (cur_entry)->name_hprof = symbol;                                        \
+            (cur_entry)->debugtrace = NULL;                                          \
             (cur_entry)->prev_hprof = (*(entries));                                  \
             hp_mode_hier_beginfn_cb((entries), (cur_entry), execute_data TSRMLS_CC); \
             /* Update entries linked list */                                         \
@@ -1688,7 +1689,13 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
 {
     hp_entry_t *top = (*entries);
     zval *counts, count_val;
-    char symbol[SCRATCH_BUF_LEN] = "";
+
+    /*
+     ** 加5个字符，主要用户跟踪函数参数及返回值时，可能需要在后面补充序号
+     ** 比如：在一个函数中多次调用 redis，第一个redis调用为 redis:1，第二个redis调用为 redis:2，依次类推
+     **/
+    char symbol[SCRATCH_BUF_LEN + 5] = "";
+
     long int mu_end;
     long int pmu_end;
     uint64 tsc_end;
@@ -1696,6 +1703,32 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     zp_trace_callback *callback;
 
     zval *trace;
+    int i, len;
+
+    /* Get the stat array */
+    hp_get_function_stack(top, 2, symbol, sizeof(symbol));
+
+    // 保存获取到的函数名字符长度
+    len = strlen(symbol); 
+
+    // 将函数参数和返回值,写入ZP_G(debug_trace)中
+    if(top->debugtrace) {
+        i = 0;
+        while(1) {
+            counts = zend_compat_hash_find_const(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol));
+            if(counts == NULL) {
+                break;
+            }
+
+            i++;
+            snprintf(symbol, sizeof(symbol), "%s:%d", symbol, i);
+        }
+
+        zend_hash_update(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol) + 1, top->debugtrace, sizeof(zval *), NULL);
+
+        // 恢复之前函数名
+        symbol[len] = '\0';
+    }
 
     /* Get end tsc counter */
     tsc_end = cycle_timer();
@@ -1715,9 +1748,6 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     {
         return;
     }
-
-    /* Get the stat array */
-    hp_get_function_stack(top, 2, symbol, sizeof(symbol));
 
     counts = zend_compat_hash_find_const(Z_ARRVAL_P(ZP_G(stats_count)), symbol, strlen(symbol));
 
@@ -1749,8 +1779,7 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
         hp_inc_count(counts, "pmu", pmu_end - top->pmu_start_hprof TSRMLS_CC);
     }
 
-    ZP_G(func_hash_counters)
-    [top->hash_code]--;
+    ZP_G(func_hash_counters)[top->hash_code]--;
 }
 
 /**
@@ -1854,8 +1883,9 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
         print_zval_type(result, function_result);
     }
 
-    // 如果有函数参数或函数返回值，记录到 ZP_G(debug_trace)
+    // 如果有函数参数或函数返回值,记录到hp_entry_t
     if(function_result || function_argument) {
+        /*
         hp_get_function_stack(ZP_G(entries), 2, function_name, sizeof(function_name) - 5); // 获取函数调用名
 
         i = 0;
@@ -1868,13 +1898,18 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
             i++;
             snprintf(function_name, sizeof(function_name), "%s:%d", function_name, i);
         }
+        */
 
         MAKE_STD_ZVAL(counts);
         array_init(counts);
-        zend_hash_update(Z_ARRVAL_P(ZP_G(debug_trace)), function_name, strlen(function_name) + 1, &counts, sizeof(zval *), NULL);
 
         add_assoc_zval(counts, "arguments", function_argument);
         add_assoc_zval(counts, "result", function_result);
+
+        // 如果调用栈顶有数据,并且该函数不在过滤列表里
+        if(ZP_G(entries) && hp_profile_flag) {
+            ZP_G(entries)->debugtrace = &counts;
+        }
     }
 
     if (ZP_G(entries))
