@@ -1727,9 +1727,15 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
             snprintf(symbol, sizeof(symbol), "%s:%d", symbol, i);
         }
         */
+        add_assoc_string(*top->debugtrace, "function_name", symbol, 1);
 
         //zend_hash_update(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol) + 1, top->debugtrace, sizeof(zval *), NULL);
-        zend_hash_index_update(Z_ARRVAL_P(ZP_G(debug_trace)), (long)top->seq_no, top->debugtrace, sizeof(zval *), NULL);
+        zend_hash_index_update(
+                Z_ARRVAL_P(ZP_G(debug_trace)), 
+                (long)top->seq_no, 
+                top->debugtrace, 
+                sizeof(zval *), 
+                NULL);
 
         // 恢复之前函数名
         //symbol[len] = '\0';
