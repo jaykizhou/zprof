@@ -1692,13 +1692,7 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
 {
     hp_entry_t *top = (*entries);
     zval *counts, count_val;
-
-    /*
-     ** 加5个字符，主要用户跟踪函数参数及返回值时，可能需要在后面补充序号
-     ** 比如：在一个函数中多次调用 redis，第一个redis调用为 redis:1，第二个redis调用为 redis:2，依次类推
-     **/
-    char symbol[SCRATCH_BUF_LEN + 5] = "";
-
+    char symbol[SCRATCH_BUF_LEN] = "";
     long int mu_end;
     long int pmu_end;
     uint64 tsc_end;
@@ -1711,34 +1705,16 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     /* Get the stat array */
     hp_get_function_stack(top, 2, symbol, sizeof(symbol));
 
-    // 保存获取到的函数名字符长度
-    //len = strlen(symbol); 
-
     // 将函数参数和返回值,写入ZP_G(debug_trace)中
     if(top->debugtrace) {
-        /*i = 0;
-        while(1) {
-            counts = zend_compat_hash_find_const(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol));
-            if(counts == NULL) {
-                break;
-            }
-
-            i++;
-            snprintf(symbol, sizeof(symbol), "%s:%d", symbol, i);
-        }
-        */
         add_assoc_string(*top->debugtrace, "function_name", symbol, 1);
 
-        //zend_hash_update(Z_ARRVAL_P(ZP_G(debug_trace)), symbol, strlen(symbol) + 1, top->debugtrace, sizeof(zval *), NULL);
         zend_hash_index_update(
                 Z_ARRVAL_P(ZP_G(debug_trace)), 
                 (long)top->seq_no, 
                 top->debugtrace, 
                 sizeof(zval *), 
                 NULL);
-
-        // 恢复之前函数名
-        //symbol[len] = '\0';
     }
 
     /* Get end tsc counter */
@@ -1828,12 +1804,6 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
     zval *function_argument = NULL;
     zval *function_result = NULL;
 
-    /*
-     * 加5个字符，主要用户跟踪函数参数及返回值，可能需要在后面补充序号
-     * 比如：在一个函数中多次调用 redis，第一个redis调用为 redis:1，第二个redis调用为 redis:2，依次类推
-     */
-    char function_name[SCRATCH_BUF_LEN + 5] = ""; 
-
     if (!ZP_G(enabled))
     {
 #if PHP_VERSION_ID < 50500
@@ -1899,30 +1869,21 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
 
     // 如果有函数参数或函数返回值,记录到hp_entry_t
     if(function_result || function_argument) {
-        /*
-        hp_get_function_stack(ZP_G(entries), 2, function_name, sizeof(function_name) - 5); // 获取函数调用名
-
-        i = 0;
-        while(1) {
-            counts = zend_compat_hash_find_const(Z_ARRVAL_P(ZP_G(debug_trace)), function_name, strlen(function_name));
-            if(counts == NULL) {
-                break;
-            }
-            
-            i++;
-            snprintf(function_name, sizeof(function_name), "%s:%d", function_name, i);
-        }
-        */
-
         MAKE_STD_ZVAL(counts);
         array_init(counts);
 
-        add_assoc_zval(counts, "arguments", function_argument);
-        add_assoc_zval(counts, "result", function_result);
+        if(function_argument) {
+            add_assoc_zval(counts, "arguments", function_argument);
+        }
+        if(function_result) {
+            add_assoc_zval(counts, "result", function_result);
+        }
 
         // 如果调用栈顶有数据,并且该函数不在过滤列表里
         if(ZP_G(entries) && hp_profile_flag) {
             ZP_G(entries)->debugtrace = &counts;
+        } else {
+            // todo : 释放arguments、result、counts
         }
     }
 
@@ -1960,8 +1921,11 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
     char *func = NULL;
     int hp_profile_flag = 1;
     int argNum = 0;
-    zval *argument, *result;
+    zval *argument, *result, *counts;
     int i = 0;
+    hp_entry_t *cur_entry; 
+    zval *function_argument = NULL;
+    zval *function_result = NULL;
 
     if (!ZP_G(enabled) || (ZP_G(zprof_flags) & ZPROF_FLAGS_NO_BUILTINS) > 0)
     {
@@ -1975,6 +1939,9 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
         return;
     }
 
+    // 函数调用总次数加1
+    ZP_G(function_nums)++;
+
     func = hp_get_function_name(execute_data TSRMLS_CC);
 
     if (func)
@@ -1982,15 +1949,15 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
         BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, execute_data);
 
         // 获取函数参数
-        /*
         argNum = ZEND_CALL_NUM_ARGS(execute_data);
-        if (argNum > 0) {
+        if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
+            MAKE_STD_ZVAL(function_argument);
+            array_init(function_argument);
             for (i = 0; i < argNum; i++) {
                 argument = ZEND_CALL_ARG(execute_data, i + 1);
-                print_zval_type(argument);
+                print_zval_type(argument, function_argument);
             }
-        }         
-        */
+        } 
     }
 
     if (!_zend_execute_internal)
@@ -2013,19 +1980,40 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
 
     if (func)
     {
+        // 获取函数返回值
+        /*
+        if(hp_profile_flag && EG(return_value_ptr_ptr)) {                                                                                                                                                                                                                           
+            MAKE_STD_ZVAL(function_result);
+            array_init(function_result);
+            zval *result = (zval *)(*EG(return_value_ptr_ptr));
+            print_zval_type(result, function_result);
+        }
+        */
+
+        // 如果有函数参数或函数返回值,记录到hp_entry_t
+        if(function_result || function_argument) {
+            MAKE_STD_ZVAL(counts);
+            array_init(counts);
+
+            if(function_argument) {
+                add_assoc_zval(counts, "arguments", function_argument);
+            }
+            if(function_result) {
+                add_assoc_zval(counts, "result", function_result);
+            }
+
+            // 如果调用栈顶有数据,并且该函数不在过滤列表里
+            if(ZP_G(entries) && hp_profile_flag) {
+                ZP_G(entries)->debugtrace = &counts;
+            } else {
+                // todo : 释放arguments、result、counts
+            }
+        }
+
         if (ZP_G(entries))
         {
             END_PROFILING(&ZP_G(entries), hp_profile_flag, execute_data);
         }
-
-
-        // 获取函数返回值
-        /*
-        if(EG(return_value_ptr_ptr)) {                                                                                                                                                                                                                           
-            zval *result = (zval *)(*EG(return_value_ptr_ptr));
-            print_zval_type(result);
-        }
-        */
 
         efree(func);
     }
