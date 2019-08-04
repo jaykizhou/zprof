@@ -160,6 +160,53 @@ static zend_always_inline long zend_compat_hash_find_long(HashTable *ht, char *k
     return -1;
 }
 
+#define T(offset) (*EX_TMP_VAR(zdata, offset))
+
+zval *zp_zval_ptr(int op_type, const znode_op *node, zend_execute_data *zdata TSRMLS_DC)
+{
+    if (!zdata->opline) {
+        return NULL;
+    }
+
+    switch (op_type & 0x0F) {
+        case IS_CONST:
+            return node->zv;
+            break;
+        case IS_TMP_VAR:
+            return &T(node->var).tmp_var;
+            break;
+        case IS_VAR:
+            if (T(node->var).var.ptr) {
+                return T(node->var).var.ptr;
+            } else {
+                temp_variable *T = &T(node->var);
+                zval *str = T->str_offset.str;
+
+                if (T->str_offset.str->type != IS_STRING
+                        || ((int)T->str_offset.offset<0)
+                        || ((unsigned int) T->str_offset.str->value.str.len <= T->str_offset.offset)) {
+                    zend_error(E_NOTICE, "Uninitialized string offset:  %d", T->str_offset.offset);
+                    T->tmp_var.value.str.val = STR_EMPTY_ALLOC();
+                    T->tmp_var.value.str.len = 0;
+                } else {
+                    char c = str->value.str.val[T->str_offset.offset];
+
+                    T->tmp_var.value.str.val = estrndup(&c, 1);
+                    T->tmp_var.value.str.len = 1;
+                }
+                T->tmp_var.refcount__gc=1;
+                T->tmp_var.is_ref__gc=1;
+                T->tmp_var.type = IS_STRING;
+                return &T->tmp_var;
+            }
+            break;
+        case IS_UNUSED:
+            return NULL;
+            break;
+    }
+    return NULL;
+}
+
 static zend_always_inline print_zval_type(zval *zv, zval *store)
 {
     int tlen = 0;
@@ -1926,12 +1973,11 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
     hp_entry_t *cur_entry; 
     zval *function_argument = NULL;
     zval *function_result = NULL;
+    const zend_op        *cur_opcode;
 
     if (!ZP_G(enabled) || (ZP_G(zprof_flags) & ZPROF_FLAGS_NO_BUILTINS) > 0)
     {
-#if PHP_MAJOR_VERSION == 7
-        execute_internal(execute_data, return_value TSRMLS_CC);
-#elif PHP_VERSION_ID < 50500
+#if PHP_VERSION_ID < 50500
         execute_internal(execute_data, ret TSRMLS_CC);
 #else
     execute_internal(execute_data, fci, ret TSRMLS_CC);
@@ -1981,7 +2027,7 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
     if (func)
     {
         // 获取函数返回值
-        /*
+        /**
         if(hp_profile_flag && EG(return_value_ptr_ptr)) {                                                                                                                                                                                                                           
             MAKE_STD_ZVAL(function_result);
             array_init(function_result);
@@ -1989,6 +2035,18 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
             print_zval_type(result, function_result);
         }
         */
+        if(hp_profile_flag && EG(opline_ptr) && execute_data->opline) {
+            MAKE_STD_ZVAL(function_result);
+            array_init(function_result);
+            cur_opcode = *EG(opline_ptr);
+            if (cur_opcode) {
+                zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
+                if (ret) {
+                    //php_var_dump(&ret, 1 TSRMLS_DC);
+                    print_zval_type(ret, function_result);
+                }
+            }
+        }
 
         // 如果有函数参数或函数返回值,记录到hp_entry_t
         if(function_result || function_argument) {
@@ -2007,6 +2065,9 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
                 ZP_G(entries)->debugtrace = &counts;
             } else {
                 // todo : 释放arguments、result、counts
+                zval_ptr_dtor(&function_argument);
+                zval_ptr_dtor(&function_result);
+                zval_ptr_dtor(&counts);
             }
         }
 
@@ -2064,6 +2125,7 @@ ZEND_DLEXPORT zend_op_array *hp_compile_string(zval *source_string, char *filena
 
     return ret;
 }
+
 
 /**
  * exception hook function.Get info from exception.
