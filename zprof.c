@@ -201,7 +201,6 @@ zval *zp_zval_ptr(int op_type, const znode_op *node, zend_execute_data *zdata TS
             }
             break;
         case IS_UNUSED:
-            php_printf("result is unused\n");
             return NULL;
             break;
     }
