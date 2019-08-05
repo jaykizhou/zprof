@@ -201,6 +201,7 @@ zval *zp_zval_ptr(int op_type, const znode_op *node, zend_execute_data *zdata TS
             }
             break;
         case IS_UNUSED:
+            php_printf("result is unused\n");
             return NULL;
             break;
     }
@@ -2040,9 +2041,10 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
             array_init(function_result);
             cur_opcode = *EG(opline_ptr);
             if (cur_opcode) {
+                php_printf("%s \n", func);
                 zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
                 if (ret) {
-                    //php_var_dump(&ret, 1 TSRMLS_DC);
+                    php_var_dump(&ret, 1 TSRMLS_DC);
                     print_zval_type(ret, function_result);
                 }
             }
@@ -2065,8 +2067,12 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
                 ZP_G(entries)->debugtrace = &counts;
             } else {
                 // todo : 释放arguments、result、counts
-                zval_ptr_dtor(&function_argument);
-                zval_ptr_dtor(&function_result);
+                if(function_argument) {
+                    zval_ptr_dtor(&function_argument);
+                }
+                if(function_result) {
+                    zval_ptr_dtor(&function_result);
+                }
                 zval_ptr_dtor(&counts);
             }
         }
