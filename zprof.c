@@ -208,7 +208,7 @@ zval *zp_zval_ptr(int op_type, const znode_op *node, zend_execute_data *zdata TS
 }
 
 // 获取zv中的值，保存到store数组中
-static zend_always_inline zp_zval_ptr_to_ptr(zval *zv, zval *store)
+static zend_always_inline zp_add_array_from_ptr(zval *zv, zval *store)
 {
     int tlen = 0;
     char *tstr = NULL;
@@ -1882,7 +1882,7 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
         array_init(function_argument);
         for (i = 0; i < argNum; i++) {
             argument = ZEND_CALL_ARG(real_execute_data, i + 1);
-            zp_zval_ptr_to_ptr(argument, function_argument);
+            zp_add_array_from_ptr(argument, function_argument);
         }
     }         
 
@@ -1897,7 +1897,7 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
         MAKE_STD_ZVAL(function_result);
         array_init(function_result);
         zval *result = (zval *)(*EG(return_value_ptr_ptr));
-        zp_zval_ptr_to_ptr(result, function_result);
+        zp_add_array_from_ptr(result, function_result);
     }
 
     // 如果有函数参数或函数返回值,记录到hp_entry_t
@@ -1994,7 +1994,7 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
             array_init(function_argument);
             for (i = 0; i < argNum; i++) {
                 argument = ZEND_CALL_ARG(execute_data, i + 1);
-                zp_zval_ptr_to_ptr(argument, function_argument);
+                zp_add_array_from_ptr(argument, function_argument);
             }
         } 
     }
@@ -2027,7 +2027,7 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
             if (cur_opcode) {
                 zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
                 if (ret) {
-                    zp_zval_ptr_to_ptr(ret, function_result);
+                    zp_add_array_from_ptr(ret, function_result);
                 }
             }
         }
@@ -2122,6 +2122,7 @@ void zp_throw_exception_hook(zval *exception TSRMLS_DC)
 {
     zval *message, *file, *line, *code;
     zend_class_entry *default_ce;
+    char value[128] = {0};
 
     if (!exception)
     {
@@ -2136,6 +2137,8 @@ void zp_throw_exception_hook(zval *exception TSRMLS_DC)
     code = zend_read_property(default_ce, exception, "code", sizeof("code") - 1, 0 TSRMLS_CC);
 
     php_printf("Exception - type:%d - file:%s - line:%d - msg:%s\n", Z_LVAL_P(code), Z_STRVAL_P(file), Z_LVAL_P(line), Z_STRVAL_P(message));
+
+    snprintf(value, sizeof(value), "Exception - type:%d - file:%s - line:%d - msg:%s\n", Z_LVAL_P(code), Z_STRVAL_P(file), Z_LVAL_P(line), Z_STRVAL_P(message));
 
     if (old_throw_exception_hook)
     {
