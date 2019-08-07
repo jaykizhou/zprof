@@ -1091,11 +1091,15 @@ void hp_init_profiler_state(TSRMLS_D)
     {
         zval_ptr_dtor(&ZP_G(exceptions));
     }
+    ALLOC_INIT_ZVAL(ZP_G(exceptions));
+    array_init(ZP_G(exceptions));
 
     if (ZP_G(errors))
     {
         zval_ptr_dtor(&ZP_G(errors));
     }
+    ALLOC_INIT_ZVAL(ZP_G(errors));
+    array_init(ZP_G(errors));
 
     if (ZP_G(trace))
     {
@@ -2122,7 +2126,7 @@ void zp_throw_exception_hook(zval *exception TSRMLS_DC)
 {
     zval *message, *file, *line, *code;
     zend_class_entry *default_ce;
-    char value[128] = {0};
+    zval *counts;
 
     if (!exception)
     {
@@ -2136,9 +2140,14 @@ void zp_throw_exception_hook(zval *exception TSRMLS_DC)
     line = zend_read_property(default_ce, exception, "line", sizeof("line") - 1, 0 TSRMLS_CC);
     code = zend_read_property(default_ce, exception, "code", sizeof("code") - 1, 0 TSRMLS_CC);
 
-    php_printf("Exception - type:%d - file:%s - line:%d - msg:%s\n", Z_LVAL_P(code), Z_STRVAL_P(file), Z_LVAL_P(line), Z_STRVAL_P(message));
+    MAKE_STD_ZVAL(counts);
+    array_init(counts);
+    add_assoc_long(counts, "type", Z_LVAL_P(code));
+    add_assoc_string(counts, "file", Z_STRVAL_P(file), 1);
+    add_assoc_long(counts, "line", Z_LVAL_P(line));
+    add_assoc_string(counts, "message", Z_STRVAL_P(message), 1);
 
-    snprintf(value, sizeof(value), "Exception - type:%d - file:%s - line:%d - msg:%s\n", Z_LVAL_P(code), Z_STRVAL_P(file), Z_LVAL_P(line), Z_STRVAL_P(message));
+    add_next_index_zval(ZP_G(exceptions), counts);
 
     if (old_throw_exception_hook)
     {
@@ -2155,20 +2164,32 @@ void zp_error_cb(int type, const char *error_filename, const uint error_lineno, 
 
     char *msg;
     va_list args_copy;
+    zval *counts;
+    char *level;
 
     va_copy(args_copy, args);
     vspprintf(&msg, 0, format, args_copy);
     va_end(args_copy);
 
     if (type == E_ERROR || type == E_PARSE || type == E_CORE_ERROR || type == E_COMPILE_ERROR || type == E_USER_ERROR || type == E_RECOVERABLE_ERROR) {
-        php_printf("%s - type:%d - file:%s - line:%d - msg:%s\n", "Error", type, (char *)error_filename, error_lineno, msg);
+        level = "Error";
     }
     else if (type == E_WARNING || type == E_CORE_WARNING || type == E_COMPILE_WARNING || type == E_USER_WARNING) {
-        php_printf("%s - type:%d - file:%s - line:%d - msg:%s\n", "Warning", type, (char *)error_filename, error_lineno, msg);
+        level = "Warning";
     }
     else if (type == E_NOTICE || type == E_USER_NOTICE || type == E_STRICT || type == E_DEPRECATED || type == E_USER_DEPRECATED) {
-        php_printf("%s - type:%d - file:%s - line:%d - msg:%s\n", "Notice", type, (char *)error_filename, error_lineno, msg);
+        level = "Notice";
     }
+
+    MAKE_STD_ZVAL(counts);
+    array_init(counts);
+    add_assoc_string(counts, "level", level, 1);
+    add_assoc_long(counts, "type", type);
+    add_assoc_string(counts, "file", (char *)error_filename, 1);
+    add_assoc_long(counts, "line", error_lineno);
+    add_assoc_string(counts, "message", msg, 1);
+
+    add_next_index_zval(ZP_G(errors), counts);
 
     efree(msg);
 
@@ -2426,6 +2447,8 @@ PHP_FUNCTION(zprof_disable)
 
     add_assoc_zval(return_value, "profile", ZP_G(stats_count));
     add_assoc_zval(return_value, "debugtrace", ZP_G(debug_trace));
+    add_assoc_zval(return_value, "exception", ZP_G(exceptions));
+    add_assoc_zval(return_value, "error", ZP_G(errors));
 
     return;
 }
