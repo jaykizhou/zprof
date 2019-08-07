@@ -1930,7 +1930,14 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
         if(ZP_G(entries) && hp_profile_flag) {
             ZP_G(entries)->debugtrace = &counts;
         } else {
-            // todo : 释放arguments、result、counts
+            // 释放arguments、result、counts
+            if(function_argument) {
+                zval_ptr_dtor(&function_argument);
+            }
+            if(function_result) {
+                zval_ptr_dtor(&function_result);
+            }
+            zval_ptr_dtor(&counts);
         }
     }
 
@@ -2027,23 +2034,13 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
     if (func)
     {
         // 获取函数返回值
-        /**
-        if(hp_profile_flag && EG(return_value_ptr_ptr)) {                                                                                                                                                                                                                           
-            MAKE_STD_ZVAL(function_result);
-            array_init(function_result);
-            zval *result = (zval *)(*EG(return_value_ptr_ptr));
-            print_zval_type(result, function_result);
-        }
-        */
         if(hp_profile_flag && EG(opline_ptr) && execute_data->opline) {
             MAKE_STD_ZVAL(function_result);
             array_init(function_result);
             cur_opcode = *EG(opline_ptr);
             if (cur_opcode) {
-                php_printf("%s \n", func);
                 zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
                 if (ret) {
-                    php_var_dump(&ret, 1 TSRMLS_DC);
                     print_zval_type(ret, function_result);
                 }
             }
@@ -2065,7 +2062,7 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
             if(ZP_G(entries) && hp_profile_flag) {
                 ZP_G(entries)->debugtrace = &counts;
             } else {
-                // todo : 释放arguments、result、counts
+                // 释放arguments、result、counts
                 if(function_argument) {
                     zval_ptr_dtor(&function_argument);
                 }
