@@ -123,3 +123,10 @@ if test "$PHP_ZPROF" != "no"; then
   PHP_SUBST([ZPROF_SHARED_LIBADD])
   PHP_NEW_EXTENSION(zprof, $ZPROF_SOURCES, $ext_shared)
 fi
+
+if test -z "$PHP_DEBUG";then
+    AC_ARG_ENABLE(debug,
+    [--enable-debug compile with debugging system],
+    [PHP_DEBUG=$enableval],[PHP_DEBUG=no]
+)
+fi
