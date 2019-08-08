@@ -548,6 +548,7 @@ void zp_trace_callback_mysqli_connect(char *symbol, zend_execute_data *data TSRM
     if (Z_TYPE_P(arg) == IS_STRING)
     {
         //zp_span_annotate_string(idx, "peer.host", Z_STRVAL_P(arg), 1 TSRMLS_CC);
+        php_printf("peer.host %s\n", Z_STRVAL_P(arg));
     }
 
     if (ZEND_CALL_NUM_ARGS(data) > 3)
@@ -557,6 +558,7 @@ void zp_trace_callback_mysqli_connect(char *symbol, zend_execute_data *data TSRM
         if (Z_TYPE_P(arg) == IS_STRING && Z_STRLEN_P(arg) > 0)
         {
             //zp_span_annotate_string(idx, "db.name", Z_STRVAL_P(arg), 1 TSRMLS_CC);
+            php_printf("db.name %s\n", Z_STRVAL_P(arg));
         }
     }
 
@@ -567,10 +569,12 @@ void zp_trace_callback_mysqli_connect(char *symbol, zend_execute_data *data TSRM
         if (Z_TYPE_P(arg) == IS_STRING)
         {
             //zp_span_annotate_string(idx, "peer.port", Z_STRVAL_P(arg), 1 TSRMLS_CC);
+            php_printf("peer.port %s\n", Z_STRVAL_P(arg));
         }
         else if (Z_TYPE_P(arg) == IS_LONG)
         {
             //zp_span_annotate_long(idx, "peer.port", Z_LVAL_P(arg) TSRMLS_CC);
+            php_printf("peer.port %d\n", Z_LAVAL_P(arg));
         }
     }
 
