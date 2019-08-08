@@ -132,9 +132,6 @@ ZEND_BEGIN_MODULE_GLOBALS(hp)
 
     /* Zprof flags */
     uint32 zprof_flags;
-
-    /* listening functions */ 
-    HashTable *trace_callbacks; 
     
     /* Holds all the Zprof statistics */
     zval            *stats_count;       // 保存所有函数的消耗时间、内存等性能分析数据
@@ -163,6 +160,11 @@ ZEND_BEGIN_MODULE_GLOBALS(hp)
 
     hp_function_map *filtered_functions;
 
+    /* listening functions */ 
+    HashTable *trace_callbacks; 
+
+    // listening functions bloom filter
+    uint8 trace_callbacks_filter[ZPROF_FILTERED_FUNCTION_SIZE];
     
     int compile_count;
     double compile_wt;
