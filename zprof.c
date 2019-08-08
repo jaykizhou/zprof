@@ -121,8 +121,11 @@ static zend_always_inline void zend_string_release(zend_string *s)
 #define ZEND_CALL_NUM_ARGS(call) hp_num_execute_arguments(call)
 #define ZEND_CALL_ARG(call, n) hp_get_execute_argument(call, n - 1)
 
-#define register_trace_callback(function_name, cb) \
-    zend_hash_update(ZP_G(trace_callbacks), function_name, sizeof(function_name), &cb, sizeof(zp_trace_callback *), NULL);
+#define register_trace_callback(function_name, cb)                                                                              \
+    do {                                                                                                                        \
+        zend_hash_update(ZP_G(trace_callbacks), function_name, sizeof(function_name), &cb, sizeof(zp_trace_callback *), NULL);  \
+        hp_init_trace_callbacks_filter(function_name TSRMLS_CC);                                                                \   
+    } while(0)
 
 static zend_always_inline zval *zend_compat_hash_find_const(HashTable *ht, const char *key, strsize_t len)
 {
@@ -997,6 +1000,21 @@ static inline int hp_function_map_filter_collision(hp_function_map *map, uint8 h
 
 static inline void hp_free_trace_cb(void *p) {}
 
+int hp_trace_callbacks_filter_exist(uint8 hash TSRMLS_DC)
+{
+    uint8 mask = INDEX_2_BIT(hash);
+    return ZP_G(trace_callbacks_filter)[INDEX_2_BYTE(hash)] & mask;
+}
+
+void hp_init_trace_callbacks_filter(char *str TSRMLS_DC)
+{
+    if(str) {
+        uint8 hash = hp_inline_hash(str);
+        int idx = INDEX_2_BYTE(hash);
+        ZP_G(trace_callbacks_filter)[idx] |= INDEX_2_BIT(hash);
+    }
+}
+
 void hp_init_trace_callbacks(TSRMLS_D)
 {
     zp_trace_callback cb;
@@ -1106,6 +1124,9 @@ void hp_init_profiler_state(TSRMLS_D)
         zval_ptr_dtor(&ZP_G(trace));
     }
 
+    // 重置布隆过滤器
+    memset(ZP_G(trace_callbacks_filter), 0, ZPROF_FILTERED_FUNCTION_SIZE);
+
     hp_init_trace_callbacks(TSRMLS_C);
 }
 
@@ -1164,6 +1185,8 @@ static void hp_clean_profiler_options_state(TSRMLS_D)
         FREE_HASHTABLE(ZP_G(trace_callbacks));
         ZP_G(trace_callbacks) = NULL;
     }
+
+    memset(ZP_G(trace_callbacks_filter), 0, ZPROF_FILTERED_FUNCTION_SIZE);
 }
 
 /*
@@ -1670,7 +1693,7 @@ void hp_mode_hier_beginfn_cb(hp_entry_t **entries, hp_entry_t *current, zend_exe
 
     if (data != NULL)
     {
-        if (zend_hash_find(ZP_G(trace_callbacks), current->name_hprof, strlen(current->name_hprof) + 1, (void **)&callback) == SUCCESS)
+        if (hp_trace_callbacks_filter_exist(current->hash_code TSRMLS_CC) && zend_hash_find(ZP_G(trace_callbacks), current->name_hprof, strlen(current->name_hprof) + 1, (void **)&callback) == SUCCESS)
         {
             (*callback)(current->name_hprof, data TSRMLS_CC);
         }
