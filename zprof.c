@@ -188,7 +188,7 @@ zval *zp_zval_ptr(int op_type, const znode_op *node, zend_execute_data *zdata TS
                 if (T->str_offset.str->type != IS_STRING
                         || ((int)T->str_offset.offset<0)
                         || ((unsigned int) T->str_offset.str->value.str.len <= T->str_offset.offset)) {
-                    zend_error(E_NOTICE, "Uninitialized string offset:  %d", T->str_offset.offset);
+                    //zend_error(E_NOTICE, "Uninitialized string offset:  %d", T->str_offset.offset);
                     T->tmp_var.value.str.val = STR_EMPTY_ALLOC();
                     T->tmp_var.value.str.len = 0;
                 } else {
@@ -527,6 +527,7 @@ void zp_trace_callback_predis_call(char *symbol, zend_execute_data *data TSRMLS_
     }
 
     //return zp_trace_callback_record_with_cache("predis", 6, Z_STRVAL_P(commandId), Z_STRLEN_P(commandId), 1 TSRMLS_CC);
+    php_printf("command %s\n", Z_STRVAL_P(commandId));
     return;
 }
 
