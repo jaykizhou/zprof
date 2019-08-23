@@ -612,24 +612,28 @@ void zp_trace_callback_pdo_connect(char *symbol, zend_execute_data *data TSRMLS_
     {
         //idx = zp_span_create("sql", 3 TSRMLS_CC);
         //zp_span_annotate_string(idx, "db.type", match->val, 1 TSRMLS_CC);
+        php_printf("db.type %s\n", match->val);
 
         zend_string_release(match);
 
         if (match = zp_pcre_match("(host=([^;\\s]+))", sizeof("(host=([^;\\s]+))") - 1, dsn TSRMLS_CC))
         {
             //zp_span_annotate_string(idx, "peer.host",  match->val, 1 TSRMLS_CC);
+            php_printf("peer.host %s\n", match->val);
             zend_string_release(match);
         }
 
         if (match = zp_pcre_match("(port=([^;\\s]+))", sizeof("(port=([^;\\s]+))") - 1, dsn TSRMLS_CC))
         {
             //zp_span_annotate_string(idx, "peer.port", match->val, 1 TSRMLS_CC);
+            php_printf("peer.port %s\n", match->val);
             zend_string_release(match);
         }
 
         if (match = zp_pcre_match("(dbname=([^;\\s]+))", sizeof("(dbname=([^;\\s]+))") - 1, dsn TSRMLS_CC))
         {
             //zp_span_annotate_string(idx, "db.name", match->val, 1 TSRMLS_CC);
+            php_printf("db.name %s\n", match->val);
             zend_string_release(match);
         }
     }
@@ -686,6 +690,7 @@ void zp_trace_callback_pdo_stmt_execute(char *symbol, zend_execute_data *data TS
 
     //idx = zp_span_create("sql", 3 TSRMLS_CC);
     //zp_span_annotate_string(idx, "sql", stmt->query_string, 1 TSRMLS_CC);
+    php_printf("pdo_stmt sql %s\n", stmt->query_string);
 
     return;
 }
@@ -724,6 +729,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
     //idx = zp_span_create("sql", 3 TSRMLS_CC);
     //zp_span_annotate_string(idx, "sql", Z_STRVAL_P(argument_element), 1 TSRMLS_CC);
+    php_printf("mysqli_query/prepare %s\n", Z_STRVAL_P(argument_element));
 
     return;
 }
