@@ -800,6 +800,7 @@ void zp_trace_callback_file_get_contents(char *symbol, zend_execute_data *data T
 
     //idx = zp_span_create("http", 4 TSRMLS_CC);
     //zp_span_annotate_string(idx, "url", Z_STRVAL_P(argument), 1 TSRMLS_CC);
+    php_printf("file_get_content %s\n", Z_STRVAL_P(argument));
 
     return;
 }
