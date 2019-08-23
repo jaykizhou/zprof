@@ -771,6 +771,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
         {
             //idx = zp_span_create("http", 4 TSRMLS_CC);
             //zp_span_annotate_string(idx, "url", Z_STRVAL_P(option), 1 TSRMLS_CC);
+            php_printf("curl url %s\n", Z_STRVAL_P(option));
         }
 
         zval_ptr_dtor(&retval_ptr);
