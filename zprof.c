@@ -447,8 +447,7 @@ PHP_MINIT_FUNCTION(zprof)
 
     for (i = 0; i < 256; i++)
     {
-        ZP_G(func_hash_counters)
-        [i] = 0;
+        ZP_G(func_hash_counters)[i] = 0;
     }
 
     _zend_compile_file = zend_compile_file;
@@ -1083,9 +1082,6 @@ void hp_init_trace_callbacks(TSRMLS_D)
 
     cb = zp_trace_callback_predis_call;
     register_trace_callback("Predis\\Client::__call", cb);
-
-    ZP_G(compile_count) = 0;
-    ZP_G(compile_wt) = 0;
 }
 
 /**
@@ -1141,6 +1137,9 @@ void hp_init_profiler_state(TSRMLS_D)
     memset(ZP_G(trace_callbacks_filter), 0, ZPROF_FILTERED_FUNCTION_SIZE);
 
     hp_init_trace_callbacks(TSRMLS_C);
+
+    ZP_G(compile_count) = 0;
+    ZP_G(compile_wt) = 0;
 }
 
 /**
