@@ -1132,6 +1132,8 @@ void hp_init_profiler_state(TSRMLS_D)
     {
         zval_ptr_dtor(&ZP_G(trace));
     }
+    ALLOC_INIT_ZVAL(ZP_G(trace));
+    array_init(ZP_G(trace));
 
     // 重置布隆过滤器
     memset(ZP_G(trace_callbacks_filter), 0, ZPROF_FILTERED_FUNCTION_SIZE);
@@ -1725,8 +1727,7 @@ void hp_mode_hier_beginfn_cb(hp_entry_t **entries, hp_entry_t *current, zend_exe
                 }
             }
         }
-        ZP_G(func_hash_counters)
-        [current->hash_code]++;
+        ZP_G(func_hash_counters)[current->hash_code]++;
 
         /* Init current function's recurse level */
         current->rlvl_hprof = recurse_level;
@@ -1794,8 +1795,8 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     wt = get_us_from_tsc(tsc_end - top->tsc_start TSRMLS_CC);
 
     // 可以考虑只记录执行时间大于 0.1 ms的函数
-    if (wt >= ZP_G(stack_threshold))
-    { // 0.1ms
+    if (wt >= ZP_G(stack_threshold) * 1000)
+    { 
     }
 
     if (ZP_G(zprof_flags) & ZPROF_FLAGS_CPU)
