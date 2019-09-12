@@ -752,6 +752,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     zval *counts;
     HashTable *ht;
     zval **tmp;
+    zval *curlArray;
 
     if (argument == NULL || Z_TYPE_P(argument) != IS_RESOURCE)
     {
@@ -778,15 +779,20 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             array_init(counts);
             add_assoc_string(counts, "url", Z_STRVAL_P(option), 1);
 
+            ht = Z_ARRVAL_P(ZP_G(trace));
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
-            ht = Z_ARRVAL_P(zset);
             if(zend_hash_find(ht, "curl", 4, (void **) &tmp) == SUCCESS) {
-                
+                curlArray = (zval *)*tmp;
             } else {
-
+                // $curl = [];
+                MAKE_STD_ZVAL(curArray);
+                array_init(curlArray);
+                // $trace['curl'] = $curl;
+                add_assoc_zval(ZP_G(trace), "curl", curArray);   
             }
 
-            add_assoc_zval(ZP_G(trace), "curl", counts);
+            // 类似于：$trace['curl'][] = $count;
+            add_next_index_zval(curArray, counts);
         }
 
         zval_ptr_dtor(&retval_ptr);
