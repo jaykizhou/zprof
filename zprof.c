@@ -749,6 +749,9 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     long idx, *idx_ptr;
     zval fname, *opt;
     zval *retval_ptr;
+    zval *counts;
+    HashTable *ht;
+    zval **tmp;
 
     if (argument == NULL || Z_TYPE_P(argument) != IS_RESOURCE)
     {
@@ -770,7 +773,20 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
         {
             //idx = zp_span_create("http", 4 TSRMLS_CC);
             //zp_span_annotate_string(idx, "url", Z_STRVAL_P(option), 1 TSRMLS_CC);
-            php_printf("curl url %s\n", Z_STRVAL_P(option));
+            //php_printf("curl url %s\n", Z_STRVAL_P(option));
+            MAKE_STD_ZVAL(counts);
+            array_init(counts);
+            add_assoc_string(counts, "url", Z_STRVAL_P(option), 1);
+
+            // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
+            ht = Z_ARRVAL_P(zset);
+            if(zend_hash_find(ht, "curl", 4, (void **) &tmp) == SUCCESS) {
+                
+            } else {
+
+            }
+
+            add_assoc_zval(ZP_G(trace), "curl", counts);
         }
 
         zval_ptr_dtor(&retval_ptr);
@@ -2485,6 +2501,7 @@ PHP_FUNCTION(zprof_disable)
     add_assoc_zval(return_value, "debugtrace", ZP_G(debug_trace));
     add_assoc_zval(return_value, "exception", ZP_G(exceptions));
     add_assoc_zval(return_value, "error", ZP_G(errors));
+    add_assoc_zval(return_value, "trace", ZP_G(trace));
 
     return;
 }
