@@ -751,7 +751,6 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     zval *retval_ptr;
     zval *counts;
     HashTable *ht;
-    zval **tmp;
     zval *curlArray;
 
     if (argument == NULL || Z_TYPE_P(argument) != IS_RESOURCE)
@@ -780,19 +779,44 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             add_assoc_string(counts, "url", Z_STRVAL_P(option), 1);
 
             ht = Z_ARRVAL_P(ZP_G(trace));
+
+            char arKey[] = "curl";
+            uint nKeyLength = 5;
+
+            /*
+            ulong h;
+            uint nIndex;
+            Bucket *p;
+            h = zend_inline_hash_func(arKey, nKeyLength);
+            nIndex = h & ht->nTableMask;
+
+            p = ht->arBuckets[nIndex];
+            while (p != NULL) {
+                php_printf("bucket key : %s %d\n", p->arKey, p->nKeyLength);
+                if (p->arKey == arKey ||
+                        ((p->h == h) && (p->nKeyLength == nKeyLength) && !memcmp(p->arKey, arKey, nKeyLength))) {
+                    php_printf("ok \n");
+                    //*pData = p->pData;
+                    //return SUCCESS;
+                }
+                p = p->pNext;
+            }
+            */
+            
+            zend_print_zval_r(ZP_G(trace), 4);
+
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
-            if(zend_hash_find(ht, "curl", 4, (void **) &tmp) == SUCCESS) {
-                curlArray = (zval *)*tmp;
-            } else {
+            if(zend_hash_find(ht, arKey, nKeyLength, (void **) &curlArray) == FAILURE) {
                 // $curl = [];
-                MAKE_STD_ZVAL(curArray);
+                MAKE_STD_ZVAL(curlArray);
                 array_init(curlArray);
                 // $trace['curl'] = $curl;
-                add_assoc_zval(ZP_G(trace), "curl", curArray);   
+                add_assoc_zval(ZP_G(trace), arKey, curlArray);   
             }
+            php_printf("---\n");
 
             // 类似于：$trace['curl'][] = $count;
-            add_next_index_zval(curArray, counts);
+            add_next_index_zval(curlArray, counts);
         }
 
         zval_ptr_dtor(&retval_ptr);
