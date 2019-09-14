@@ -752,6 +752,10 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     zval *counts;
     HashTable *ht;
     zval *curlArray;
+    zval **tmpzval;
+
+    char arKey[] = "curl";
+    uint nKeyLength = 5;
 
     if (argument == NULL || Z_TYPE_P(argument) != IS_RESOURCE)
     {
@@ -771,49 +775,21 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
 
         if (option && Z_TYPE_P(option) == IS_STRING)
         {
-            //idx = zp_span_create("http", 4 TSRMLS_CC);
-            //zp_span_annotate_string(idx, "url", Z_STRVAL_P(option), 1 TSRMLS_CC);
-            //php_printf("curl url %s\n", Z_STRVAL_P(option));
             MAKE_STD_ZVAL(counts);
             array_init(counts);
             add_assoc_string(counts, "url", Z_STRVAL_P(option), 1);
 
-            ht = Z_ARRVAL_P(ZP_G(trace));
-
-            char arKey[] = "curl";
-            uint nKeyLength = 5;
-
-            /*
-            ulong h;
-            uint nIndex;
-            Bucket *p;
-            h = zend_inline_hash_func(arKey, nKeyLength);
-            nIndex = h & ht->nTableMask;
-
-            p = ht->arBuckets[nIndex];
-            while (p != NULL) {
-                php_printf("bucket key : %s %d\n", p->arKey, p->nKeyLength);
-                if (p->arKey == arKey ||
-                        ((p->h == h) && (p->nKeyLength == nKeyLength) && !memcmp(p->arKey, arKey, nKeyLength))) {
-                    php_printf("ok \n");
-                    //*pData = p->pData;
-                    //return SUCCESS;
-                }
-                p = p->pNext;
-            }
-            */
-            
-            zend_print_zval_r(ZP_G(trace), 4);
-
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
-            if(zend_hash_find(ht, arKey, nKeyLength, (void **) &curlArray) == FAILURE) {
+            ht = Z_ARRVAL_P(ZP_G(trace));
+            if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
                 // $curl = [];
                 MAKE_STD_ZVAL(curlArray);
                 array_init(curlArray);
                 // $trace['curl'] = $curl;
                 add_assoc_zval(ZP_G(trace), arKey, curlArray);   
+            } else {
+                curlArray = *tmpzval;
             }
-            php_printf("---\n");
 
             // 类似于：$trace['curl'][] = $count;
             add_next_index_zval(curlArray, counts);
