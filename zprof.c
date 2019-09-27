@@ -721,6 +721,11 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     {
         argument_element = ZEND_CALL_ARG(data, 1);
 
+        if (strcmp(Z_STRVAL_P(argument_element), "select database()") == 0)
+        {
+            return ;
+        }
+
         // 执行 select database() 获取当前数据库名
         ZVAL_STRING(&fname, "query", 0);
 
@@ -743,6 +748,8 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
                 NULL TSRMLS_CC))
             {
                 php_var_dump(&retval_ptr, 10);
+            } else {
+                php_printf("execute error");
             }
         }
     }
