@@ -711,6 +711,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 {
     zval *argument_element;
     long idx;
+    zval fname, *opt, *retval_ptr, *pa;
 
     if (strcmp(symbol, "mysqli_query") == 0 || strcmp(symbol, "mysqli_prepare") == 0)
     {
@@ -719,6 +720,31 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     else
     {
         argument_element = ZEND_CALL_ARG(data, 1);
+
+        // 执行 select database() 获取当前数据库名
+        ZVAL_STRING(&fname, "query", 0);
+
+        MAKE_STD_ZVAL(pa);
+        ZVAL_STRING(pa, "select database()", 0);
+
+        zval ***params_array;
+        params_array = (zval ***)emalloc(sizeof(zval **));
+        params_array[0] = &pa;
+        if(data->object) {
+            Z_OBJCE(*data->object);
+            if(SUCCESS == call_user_function_ex(
+                EG(function_table), 
+                &data->object, 
+                &fname, 
+                &retval_ptr, 
+                1, 
+                params_array, 
+                1, 
+                NULL TSRMLS_CC))
+            {
+                php_var_dump(&retval_ptr, 10);
+            }
+        }
     }
 
     if (Z_TYPE_P(argument_element) != IS_STRING)
@@ -768,7 +794,15 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     params_array = (zval ***)emalloc(sizeof(zval **));
     params_array[0] = &argument;
 
-    if (SUCCESS == call_user_function_ex(EG(function_table), NULL, &fname, &retval_ptr, 1, params_array, 1, NULL TSRMLS_CC))
+    if (SUCCESS == call_user_function_ex(
+        EG(function_table), 
+        NULL, 
+        &fname, 
+        &retval_ptr, 
+        1, 
+        params_array, 
+        1, 
+        NULL TSRMLS_CC))
     {
 
         option = zend_compat_hash_find_const(Z_ARRVAL_P(retval_ptr), "url", sizeof("url") - 1);
