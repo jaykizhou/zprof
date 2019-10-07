@@ -40,6 +40,7 @@
 #include "zend_extensions.h"
 #include "zend_exceptions.h"
 #include "zend_builtin_functions.h"
+#include "zend_interfaces.h"
 
 #include "ext/standard/url.h"
 #if HAVE_PDO
@@ -709,9 +710,17 @@ void zp_trace_callback_sql_commit(char *symbol, zend_execute_data *data TSRMLS_D
 
 void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRMLS_DC)
 {
-    zval *argument_element;
-    long idx;
-    zval fname, *opt, *retval_ptr, *pa;
+    zval *argument_element, *mysql_result, *pa, *counts, *row = NULL, *dbname = NULL; 
+    zend_class_entry *ce;
+    char *sc = "select database() as zp_dbname;";
+    char *key = "zp_dbname";
+    uint keylen = strlen(key);
+
+    char arKey[] = "sql";
+    uint nKeyLength = 4;
+    zval **tmpzval;
+    HashTable *ht;
+    zval *sqlArray;
 
     if (strcmp(symbol, "mysqli_query") == 0 || strcmp(symbol, "mysqli_prepare") == 0)
     {
@@ -719,49 +728,82 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     }
     else
     {
+        // 对象模式执行，获取执行的SQL语句
         argument_element = ZEND_CALL_ARG(data, 1);
 
-        if (strcmp(Z_STRVAL_P(argument_element), "select database()") == 0)
+        if (Z_TYPE_P(argument_element) != IS_STRING) {
+            return;
+        }
+
+        // 如果执行的SQL语句是select database()，不需要记录回调信息，因为是profiler自己调用的(可能存在误判，用户也可能调用)
+        if (strcmp(Z_STRVAL_P(argument_element), sc) == 0)
         {
             return ;
         }
 
-        // 执行 select database() 获取当前数据库名
-        ZVAL_STRING(&fname, "query", 0);
-
+        // 设置参数，执行的sql,会导致profiler多记录一次数据库函数调用
         MAKE_STD_ZVAL(pa);
-        ZVAL_STRING(pa, "select database()", 0);
+        ZVAL_STRING(pa, sc, 1);
 
-        zval ***params_array;
-        params_array = (zval ***)emalloc(sizeof(zval **));
-        params_array[0] = &pa;
+        /**
+        * 执行 select database() 获取当前数据库名，一个项目如果连接了多个数据库，需要知道当前SQL语句在哪个数据库上执行的
+        * 下面语句类似于: $msyqli->query('select database()')
+        */
         if(data->object) {
-            Z_OBJCE(*data->object);
-            if(SUCCESS == call_user_function_ex(
-                EG(function_table), 
-                &data->object, 
-                &fname, 
-                &retval_ptr, 
-                1, 
-                params_array, 
-                1, 
-                NULL TSRMLS_CC))
-            {
-                php_var_dump(&retval_ptr, 10);
-            } else {
-                php_printf("execute error");
-            }
+            ce = Z_OBJCE_P(data->object);
+            zend_call_method_with_1_params(&data->object, ce, NULL, "query", &mysql_result, pa);
         }
+
+        // $mysql->query 有结果，再调用$mysql_result->fetch_assoc 获取具体返回数据
+        if(mysql_result) {
+            ce = Z_OBJCE_P(mysql_result);
+            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch_assoc", &row);
+
+            // $mysql_result->fetch_assoc 有返回结果
+            if(row) {
+                dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
+            }
+
+            zval_ptr_dtor(&mysql_result);
+        }
+
+        MAKE_STD_ZVAL(counts);
+        array_init(counts);
+        add_assoc_string(counts, "sql", Z_STRVAL_P(argument_element), 1);
+
+        if(dbname && Z_TYPE_P(dbname) == IS_STRING) {
+            add_assoc_string(counts, "dbname", Z_STRVAL_P(dbname), 1);
+        }
+        
+        // 释放$mysql_result->fetch_assoc 结果空间，
+        // 如果在上面释放，会导致dbname获取不到数据库名
+        if(row) {
+            zval_ptr_dtor(&row);
+        }
+
+        // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
+        ht = Z_ARRVAL_P(ZP_G(trace));
+        if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
+            // $sql = [];
+            MAKE_STD_ZVAL(sqlArray);
+            array_init(sqlArray);
+            // $trace['sql'] = $sql;
+            add_assoc_zval(ZP_G(trace), arKey, sqlArray);   
+        } else {
+            sqlArray = *tmpzval;
+        }
+
+        // 类似于：$trace['sql'][] = $count;
+        add_next_index_zval(sqlArray, counts);
+
+        // 释放参数的空间
+        zval_ptr_dtor(&pa);
     }
 
-    if (Z_TYPE_P(argument_element) != IS_STRING)
-    {
-        return;
-    }
 
     //idx = zp_span_create("sql", 3 TSRMLS_CC);
     //zp_span_annotate_string(idx, "sql", Z_STRVAL_P(argument_element), 1 TSRMLS_CC);
-    php_printf("mysqli_query/prepare %s\n", Z_STRVAL_P(argument_element));
+    //php_printf("mysqli_query/prepare %s\n", Z_STRVAL_P(argument_element));
 
     return;
 }
