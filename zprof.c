@@ -541,14 +541,10 @@ void zp_trace_callback_mysqli_connect(char *symbol, zend_execute_data *data TSRM
         return;
     }
 
-    //idx = zp_span_create("sql", 3 TSRMLS_CC);
-    //zp_span_annotate_string(idx, "db.type", "mysql", 1 TSRMLS_CC);
-
     arg = ZEND_CALL_ARG(data, 1);
 
     if (Z_TYPE_P(arg) == IS_STRING)
     {
-        //zp_span_annotate_string(idx, "peer.host", Z_STRVAL_P(arg), 1 TSRMLS_CC);
         php_printf("peer.host %s\n", Z_STRVAL_P(arg));
     }
 
@@ -558,7 +554,6 @@ void zp_trace_callback_mysqli_connect(char *symbol, zend_execute_data *data TSRM
 
         if (Z_TYPE_P(arg) == IS_STRING && Z_STRLEN_P(arg) > 0)
         {
-            //zp_span_annotate_string(idx, "db.name", Z_STRVAL_P(arg), 1 TSRMLS_CC);
             php_printf("db.name %s\n", Z_STRVAL_P(arg));
         }
     }
@@ -569,12 +564,10 @@ void zp_trace_callback_mysqli_connect(char *symbol, zend_execute_data *data TSRM
 
         if (Z_TYPE_P(arg) == IS_STRING)
         {
-            //zp_span_annotate_string(idx, "peer.port", Z_STRVAL_P(arg), 1 TSRMLS_CC);
             php_printf("peer.port %s\n", Z_STRVAL_P(arg));
         }
         else if (Z_TYPE_P(arg) == IS_LONG)
         {
-            //zp_span_annotate_long(idx, "peer.port", Z_LVAL_P(arg) TSRMLS_CC);
             php_printf("peer.port %d\n", Z_LAVAL_P(arg));
         }
     }
@@ -688,8 +681,6 @@ void zp_trace_callback_pdo_stmt_execute(char *symbol, zend_execute_data *data TS
 
     pdo_stmt_t *stmt = (pdo_stmt_t *)zend_object_store_get_object_by_handle(Z_OBJ_HANDLE_P(data->object) TSRMLS_CC);
 
-    //idx = zp_span_create("sql", 3 TSRMLS_CC);
-    //zp_span_annotate_string(idx, "sql", stmt->query_string, 1 TSRMLS_CC);
     php_printf("pdo_stmt sql %s\n", stmt->query_string);
 
     return;
@@ -698,13 +689,11 @@ void zp_trace_callback_pdo_stmt_execute(char *symbol, zend_execute_data *data TS
 
 void zp_trace_callback_mysqli_stmt_execute(char *symbol, zend_execute_data *data TSRMLS_DC)
 {
-    //return zp_trace_callback_record_with_cache("sql", 3, "execute", 7, 1 TSRMLS_CC);
     return;
 }
 
 void zp_trace_callback_sql_commit(char *symbol, zend_execute_data *data TSRMLS_DC)
 {
-    //return zp_trace_callback_record_with_cache("sql", 3, "commit", 3, 1 TSRMLS_CC);
     return;
 }
 
@@ -722,12 +711,9 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     HashTable *ht;
     zval *sqlArray;
 
-    if (strcmp(symbol, "mysqli_query") == 0 || strcmp(symbol, "mysqli_prepare") == 0)
-    {
+    if (strcmp(symbol, "mysqli_query") == 0 || strcmp(symbol, "mysqli_prepare") == 0) {
         argument_element = ZEND_CALL_ARG(data, 2);
-    }
-    else
-    {
+    } else {
         // 对象模式执行，获取执行的SQL语句
         argument_element = ZEND_CALL_ARG(data, 1);
 
@@ -799,11 +785,6 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         // 释放参数的空间
         zval_ptr_dtor(&pa);
     }
-
-
-    //idx = zp_span_create("sql", 3 TSRMLS_CC);
-    //zp_span_annotate_string(idx, "sql", Z_STRVAL_P(argument_element), 1 TSRMLS_CC);
-    //php_printf("mysqli_query/prepare %s\n", Z_STRVAL_P(argument_element));
 
     return;
 }
@@ -1141,8 +1122,8 @@ void hp_init_trace_callbacks(TSRMLS_D)
     ALLOC_HASHTABLE(ZP_G(trace_callbacks));
     zend_hash_init(ZP_G(trace_callbacks), 255, NULL, hp_free_trace_cb, 0);
 
-    cb = zp_trace_callback_file_get_contents;
-    register_trace_callback("file_get_contents", cb);
+    //cb = zp_trace_callback_file_get_contents;
+    //register_trace_callback("file_get_contents", cb);
 
     cb = zp_trace_callback_curl_exec;
     register_trace_callback("curl_exec", cb);
@@ -1182,11 +1163,11 @@ void hp_init_trace_callbacks(TSRMLS_D)
     register_trace_callback("mysqli_stmt_execute", cb);
     register_trace_callback("mysqli_stmt::execute", cb);
 
-    cb = zp_trace_callback_fastcgi_finish_request;
-    register_trace_callback("fastcgi_finish_request", cb);
+    //cb = zp_trace_callback_fastcgi_finish_request;
+    //register_trace_callback("fastcgi_finish_request", cb);
 
-    cb = zp_trace_callback_predis_call;
-    register_trace_callback("Predis\\Client::__call", cb);
+    //cb = zp_trace_callback_predis_call;
+    //register_trace_callback("Predis\\Client::__call", cb);
 }
 
 /**
