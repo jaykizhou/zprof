@@ -381,8 +381,8 @@ PHP_INI_BEGIN()
 /**
  * INI-Settings are always used by the extension, but by the PHP library.
  */
-PHP_INI_ENTRY("zprof.debug_trace", "zprof_debug", PHP_INI_ALL, NULL)
-PHP_INI_ENTRY("zprof.stack_threshold", "0.1", PHP_INI_ALL, NULL)
+PHP_INI_ENTRY("zprof.stack_threshold", "0", PHP_INI_ALL, NULL)
+PHP_INI_ENTRY("zprof.zpkey", "zpkey", PHP_INI_ALL, NULL)
 
 PHP_INI_END()
 
@@ -2531,6 +2531,8 @@ PHP_FUNCTION(zprof_enable)
 {
     zend_long zprof_flags = 0;
     zval *optional_array = NULL;
+    zval *trace_key = NULL, *trace_class = NULL, *trace_method = NULL;
+    char *ini_zpkey;
 
     if (ZP_G(enabled))
     {
@@ -2544,6 +2546,36 @@ PHP_FUNCTION(zprof_enable)
     }
 
     hp_parse_options_from_arg(optional_array TSRMLS_CC);
+
+    // 获取ini配置的zpkey
+    ini_zpkey = INI_STR("zprof.zpkey");
+
+    // 获取GET参数，追踪指定函数参数及返回值
+    if(PG(http_globals)[TRACK_VARS_GET] && zend_hash_num_elements(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]))) {
+
+        // 获取trace key,只有trace key与设置的一样，才会追踪指定函数
+        trace_key = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_key", sizeof("zp_key") - 1);
+        if(trace_key && Z_TYPE_P(trace_key) == IS_STRING) {
+            php_printf("zpkey : %s\r\n", Z_STRVAL_P(trace_key));
+        }
+
+        // 判断GET传递的zpkey与ini配置的zpkey是否一样
+        if(strcmp(ini_zpkey, Z_STRVAL_P(trace_key)) == 0) {
+            php_printf("zpkey一样\r\n\r\n");
+        }
+
+        // 获取需要追踪的类名
+        trace_class = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_class", sizeof("zp_class") - 1);
+        if(trace_class && Z_TYPE_P(trace_class) == IS_STRING) {
+            php_printf("zpclass : %s\r\n", Z_STRVAL_P(trace_class));
+        }
+
+        // 获取需要追踪的函数名
+        trace_method = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_method", sizeof("zp_method") - 1);
+        if(trace_method && Z_TYPE_P(trace_method) == IS_STRING) {
+            php_printf("zpmethod : %s\r\n", Z_STRVAL_P(trace_method));
+        }
+    }
 
     hp_begin(zprof_flags TSRMLS_CC);
 }
