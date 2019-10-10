@@ -173,6 +173,10 @@ ZEND_BEGIN_MODULE_GLOBALS(hp)
 
     //  microseconds, profiling if function's execution time greater than this 
     double stack_threshold;  
+    
+    uint8 trace_on;    // 是否追踪函数
+    char *trace_func;  // 追踪的函数名(包含类名)
+
 ZEND_END_MODULE_GLOBALS(hp)
 
 #ifdef ZTS

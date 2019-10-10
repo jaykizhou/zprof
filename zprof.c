@@ -413,6 +413,9 @@ PHP_GINIT_FUNCTION(hp) {
     hp_globals->stack_threshold = 0.1;
 
     hp_globals->function_nums = 0;
+
+    hp_globals->trace_func = NULL;
+     hp_globals->trace_on = 0;
 }
 
 PHP_GSHUTDOWN_FUNCTION(hp)
@@ -2392,6 +2395,12 @@ static void hp_stop(TSRMLS_D)
         ZP_G(root) = NULL;
     }
 
+    if (ZP_G(trace_func))
+    {
+        efree(ZP_G(trace_func));
+        ZP_G(trace_func) = NULL;
+    }
+
     /* Stop profiling */
     ZP_G(enabled) = 0;
 }
@@ -2550,6 +2559,9 @@ PHP_FUNCTION(zprof_enable)
     // 获取ini配置的zpkey
     ini_zpkey = INI_STR("zprof.zpkey");
 
+    // 默认不追踪任何函数
+    ZP_G(trace_on) = 0;
+
     // 获取GET参数，追踪指定函数参数及返回值
     if(PG(http_globals)[TRACK_VARS_GET] && zend_hash_num_elements(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]))) {
 
@@ -2559,21 +2571,23 @@ PHP_FUNCTION(zprof_enable)
             php_printf("zpkey : %s\r\n", Z_STRVAL_P(trace_key));
         }
 
-        // 判断GET传递的zpkey与ini配置的zpkey是否一样
+        // 判断GET传递的zpkey与ini配置的zpkey是否一样，如果相等，打开追踪函数开关
         if(strcmp(ini_zpkey, Z_STRVAL_P(trace_key)) == 0) {
-            php_printf("zpkey一样\r\n\r\n");
+            ZP_G(trace_on) = 1;
         }
 
-        // 获取需要追踪的类名
-        trace_class = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_class", sizeof("zp_class") - 1);
-        if(trace_class && Z_TYPE_P(trace_class) == IS_STRING) {
-            php_printf("zpclass : %s\r\n", Z_STRVAL_P(trace_class));
-        }
+        if(ZP_G(trace_on)) {
+            // 获取需要追踪的类名
+            trace_class = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_class", sizeof("zp_class") - 1);
 
-        // 获取需要追踪的函数名
-        trace_method = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_method", sizeof("zp_method") - 1);
-        if(trace_method && Z_TYPE_P(trace_method) == IS_STRING) {
-            php_printf("zpmethod : %s\r\n", Z_STRVAL_P(trace_method));
+            // 获取需要追踪的函数名
+            trace_method = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_method", sizeof("zp_method") - 1);
+            
+            if(trace_class && Z_TYPE_P(trace_class) == IS_STRING && trace_method && Z_TYPE_P(trace_method) == IS_STRING) {
+                ZP_G(trace_func) =hp_concat_char(Z_STRVAL_P(trace_class), strlen(Z_STRVAL_P(trace_class)), Z_STRVAL_P(trace_method), strlen(Z_STRVAL_P(trace_method)), "::", 2);
+            } else if(trace_method && Z_TYPE_P(trace_method) == IS_STRING) {
+                ZP_G(trace_func) = estrdup(Z_STRVAL_P(trace_method));
+            }
         }
     }
 
