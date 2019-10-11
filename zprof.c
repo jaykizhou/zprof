@@ -714,8 +714,69 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     HashTable *ht;
     zval *sqlArray;
 
-    if (strcmp(symbol, "mysqli_query") == 0 || strcmp(symbol, "mysqli_prepare") == 0) {
+    if (strcmp(symbol, "mysqli_query") == 0 || strcmp(symbol, "mysql_query") == 0) {
         argument_element = ZEND_CALL_ARG(data, 2);
+
+        if (Z_TYPE_P(argument_element) != IS_STRING) {
+            return;
+        }
+
+        // 如果执行的SQL语句是select database()，不需要记录回调信息，因为是profiler自己调用的(可能存在误判，用户也可能调用)
+        if (strcmp(Z_STRVAL_P(argument_element), sc) == 0)
+        {
+            return ;
+        }
+
+        // 设置参数，执行的sql,会导致profiler多记录一次数据库函数调用
+        MAKE_STD_ZVAL(pa);
+        ZVAL_STRING(pa, sc, 1);
+
+        zend_call_method_with_1_params(&data->object, ce, NULL, "mysqli_query", &mysql_result, pa);
+
+        // $mysql->query 有结果，再调用$mysql_result->fetch_assoc 获取具体返回数据
+        if(mysql_result) {
+            ce = Z_OBJCE_P(mysql_result);
+            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch_assoc", &row);
+
+            // $mysql_result->fetch_assoc 有返回结果
+            if(row) {
+                dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
+            }
+
+            zval_ptr_dtor(&mysql_result);
+        }
+
+        MAKE_STD_ZVAL(counts);
+        array_init(counts);
+        add_assoc_string(counts, "sql", Z_STRVAL_P(argument_element), 1);
+
+        if(dbname && Z_TYPE_P(dbname) == IS_STRING) {
+            add_assoc_string(counts, "dbname", Z_STRVAL_P(dbname), 1);
+        }
+        
+        // 释放$mysql_result->fetch_assoc 结果空间，
+        // 如果在上面释放，会导致dbname获取不到数据库名
+        if(row) {
+            zval_ptr_dtor(&row);
+        }
+
+        // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
+        ht = Z_ARRVAL_P(ZP_G(trace));
+        if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
+            // $sql = [];
+            MAKE_STD_ZVAL(sqlArray);
+            array_init(sqlArray);
+            // $trace['sql'] = $sql;
+            add_assoc_zval(ZP_G(trace), arKey, sqlArray);   
+        } else {
+            sqlArray = *tmpzval;
+        }
+
+        // 类似于：$trace['sql'][] = $count;
+        add_next_index_zval(sqlArray, counts);
+
+        // 释放参数的空间
+        zval_ptr_dtor(&pa);
     } else {
         // 对象模式执行，获取执行的SQL语句
         argument_element = ZEND_CALL_ARG(data, 1);
@@ -1139,32 +1200,32 @@ void hp_init_trace_callbacks(TSRMLS_D)
     register_trace_callback("mysql_query", cb);
     register_trace_callback("mysqli_query", cb);
     register_trace_callback("mysqli::query", cb);
-    register_trace_callback("mysqli::prepare", cb);
-    register_trace_callback("mysqli_prepare", cb);
+    //register_trace_callback("mysqli::prepare", cb);
+    //register_trace_callback("mysqli_prepare", cb);
 
-    cb = zp_trace_callback_sql_commit;
+    //cb = zp_trace_callback_sql_commit;
 #if HAVE_PDO
-    register_trace_callback("PDO::commit", cb);
+    //register_trace_callback("PDO::commit", cb);
 #endif
-    register_trace_callback("mysqli::commit", cb);
-    register_trace_callback("mysqli_commit", cb);
+    //register_trace_callback("mysqli::commit", cb);
+    //register_trace_callback("mysqli_commit", cb);
 
-    cb = zp_trace_callback_mysqli_connect;
-    register_trace_callback("mysql_connect", cb);
-    register_trace_callback("mysqli_connect", cb);
-    register_trace_callback("mysqli::mysqli", cb);
+    //cb = zp_trace_callback_mysqli_connect;
+    //register_trace_callback("mysql_connect", cb);
+    //register_trace_callback("mysqli_connect", cb);
+    //register_trace_callback("mysqli::mysqli", cb);
 
 #if HAVE_PDO
-    cb = zp_trace_callback_pdo_connect;
-    register_trace_callback("PDO::__construct", cb);
+    //cb = zp_trace_callback_pdo_connect;
+    //register_trace_callback("PDO::__construct", cb);
 
-    cb = zp_trace_callback_pdo_stmt_execute;
-    register_trace_callback("PDOStatement::execute", cb);
+    //cb = zp_trace_callback_pdo_stmt_execute;
+    //register_trace_callback("PDOStatement::execute", cb);
 #endif
 
-    cb = zp_trace_callback_mysqli_stmt_execute;
-    register_trace_callback("mysqli_stmt_execute", cb);
-    register_trace_callback("mysqli_stmt::execute", cb);
+    //cb = zp_trace_callback_mysqli_stmt_execute;
+    //register_trace_callback("mysqli_stmt_execute", cb);
+    //register_trace_callback("mysqli_stmt::execute", cb);
 
     //cb = zp_trace_callback_fastcgi_finish_request;
     //register_trace_callback("fastcgi_finish_request", cb);
