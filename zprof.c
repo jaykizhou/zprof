@@ -2004,16 +2004,18 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
 
     BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, real_execute_data);
 
-    // 获取函数参数
-    argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
-    if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
-        MAKE_STD_ZVAL(function_argument);
-        array_init(function_argument);
-        for (i = 0; i < argNum; i++) {
-            argument = ZEND_CALL_ARG(real_execute_data, i + 1);
-            zp_add_array_from_ptr(argument, function_argument);
+    // 如果是指定的追踪函数，获取函数参数
+    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+        argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
+        if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
+            MAKE_STD_ZVAL(function_argument);
+            array_init(function_argument);
+            for (i = 0; i < argNum; i++) {
+                argument = ZEND_CALL_ARG(real_execute_data, i + 1);
+                zp_add_array_from_ptr(argument, function_argument);
+            }
         }
-    }         
+    }
 
 #if PHP_VERSION_ID < 50500
     _zend_execute(ops TSRMLS_CC);
@@ -2021,12 +2023,14 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
     _zend_execute_ex(execute_data TSRMLS_CC);
 #endif
     
-    // 获取函数返回值
-    if(hp_profile_flag && EG(return_value_ptr_ptr)) {                                                                                                                                                                                                                           
-        MAKE_STD_ZVAL(function_result);
-        array_init(function_result);
-        zval *result = (zval *)(*EG(return_value_ptr_ptr));
-        zp_add_array_from_ptr(result, function_result);
+    // 如果是指定的追踪函数，获取函数返回值
+    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+        if(hp_profile_flag && EG(return_value_ptr_ptr)) {
+            MAKE_STD_ZVAL(function_result);
+            array_init(function_result);
+            zval *result = (zval *)(*EG(return_value_ptr_ptr));
+            zp_add_array_from_ptr(result, function_result);
+        }
     }
 
     // 如果有函数参数或函数返回值,记录到hp_entry_t
@@ -2116,16 +2120,18 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
     {
         BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, execute_data);
 
-        // 获取函数参数
-        argNum = ZEND_CALL_NUM_ARGS(execute_data);
-        if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
-            MAKE_STD_ZVAL(function_argument);
-            array_init(function_argument);
-            for (i = 0; i < argNum; i++) {
-                argument = ZEND_CALL_ARG(execute_data, i + 1);
-                zp_add_array_from_ptr(argument, function_argument);
-            }
-        } 
+        // 如果是指定的追踪函数，获取函数参数
+        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+            argNum = ZEND_CALL_NUM_ARGS(execute_data);
+            if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
+                MAKE_STD_ZVAL(function_argument);
+                array_init(function_argument);
+                for (i = 0; i < argNum; i++) {
+                    argument = ZEND_CALL_ARG(execute_data, i + 1);
+                    zp_add_array_from_ptr(argument, function_argument);
+                }
+            } 
+        }
     }
 
     if (!_zend_execute_internal)
@@ -2148,15 +2154,17 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
 
     if (func)
     {
-        // 获取函数返回值
-        if(hp_profile_flag && EG(opline_ptr) && execute_data->opline) {
-            MAKE_STD_ZVAL(function_result);
-            array_init(function_result);
-            cur_opcode = *EG(opline_ptr);
-            if (cur_opcode) {
-                zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
-                if (ret) {
-                    zp_add_array_from_ptr(ret, function_result);
+        // 如果是指定的追踪函数，获取函数返回值
+        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+            if(hp_profile_flag && EG(opline_ptr) && execute_data->opline) {
+                MAKE_STD_ZVAL(function_result);
+                array_init(function_result);
+                cur_opcode = *EG(opline_ptr);
+                if (cur_opcode) {
+                    zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
+                    if (ret) {
+                        zp_add_array_from_ptr(ret, function_result);
+                    }
                 }
             }
         }
@@ -2561,18 +2569,16 @@ PHP_FUNCTION(zprof_enable)
 
     // 默认不追踪任何函数
     ZP_G(trace_on) = 0;
+    ZP_G(trace_func) = NULL;
 
     // 获取GET参数，追踪指定函数参数及返回值
     if(PG(http_globals)[TRACK_VARS_GET] && zend_hash_num_elements(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]))) {
 
         // 获取trace key,只有trace key与设置的一样，才会追踪指定函数
         trace_key = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_key", sizeof("zp_key") - 1);
-        if(trace_key && Z_TYPE_P(trace_key) == IS_STRING) {
-            php_printf("zpkey : %s\r\n", Z_STRVAL_P(trace_key));
-        }
 
         // 判断GET传递的zpkey与ini配置的zpkey是否一样，如果相等，打开追踪函数开关
-        if(strcmp(ini_zpkey, Z_STRVAL_P(trace_key)) == 0) {
+        if(trace_key && Z_TYPE_P(trace_key) == IS_STRING && Z_STRLEN_P(trace_key) && strcmp(ini_zpkey, Z_STRVAL_P(trace_key)) == 0) {
             ZP_G(trace_on) = 1;
         }
 
@@ -2583,11 +2589,12 @@ PHP_FUNCTION(zprof_enable)
             // 获取需要追踪的函数名
             trace_method = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_method", sizeof("zp_method") - 1);
             
-            if(trace_class && Z_TYPE_P(trace_class) == IS_STRING && trace_method && Z_TYPE_P(trace_method) == IS_STRING) {
-                ZP_G(trace_func) =hp_concat_char(Z_STRVAL_P(trace_class), strlen(Z_STRVAL_P(trace_class)), Z_STRVAL_P(trace_method), strlen(Z_STRVAL_P(trace_method)), "::", 2);
-            } else if(trace_method && Z_TYPE_P(trace_method) == IS_STRING) {
+            if(trace_class && Z_TYPE_P(trace_class) == IS_STRING && Z_STRLEN_P(trace_class) && trace_method && Z_TYPE_P(trace_method) == IS_STRING && Z_STRLEN_P(trace_method)) {
+                ZP_G(trace_func) = hp_concat_char(Z_STRVAL_P(trace_class), Z_STRLEN_P(trace_class), Z_STRVAL_P(trace_method), Z_STRLEN_P(trace_method), "::", 2);
+            } else if(trace_method && Z_TYPE_P(trace_method) == IS_STRING && Z_STRLEN_P(trace_method)) {
                 ZP_G(trace_func) = estrdup(Z_STRVAL_P(trace_method));
             }
+
         }
     }
 
