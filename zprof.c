@@ -801,7 +801,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         /**
         * 执行 select database() 获取当前数据库名，一个项目如果连接了多个数据库，需要知道当前SQL语句在哪个数据库上执行的
-        * 下面语句类似于: $msyqli->query('select database()')
+        * 下面语句类似于: $msyqli->query('select database()') or $pdo->query('select database()')
         */
         if(data->object) 
         {
@@ -810,12 +810,25 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         }
 
         // $mysql->query 有结果，再调用$mysql_result->fetch_assoc 获取具体返回数据
-        if(mysql_result) 
+        if(strcmp(symbol, "mysqli::query") == 0 && mysql_result)
         {
             ce = Z_OBJCE_P(mysql_result);
             zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch_assoc", &row);
 
             // $mysql_result->fetch_assoc 有返回结果
+            if(row) {
+                dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
+            }
+
+            zval_ptr_dtor(&mysql_result);
+        }
+        // $pdo->query 有结果，再调用$PDOStatement->fetch 获取具体返回数据
+        else if(mysql_result)
+        {
+            ce = Z_OBJCE_P(mysql_result);
+            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch", &row);
+
+            // $PDOStatement->fetch 有返回结果
             if(row) {
                 dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
             }
