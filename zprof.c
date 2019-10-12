@@ -171,7 +171,7 @@ static char *strtolower(char *str)
 
     for (; *str != '\0'; str++)
     {
-        *str = tolowwer(*str);
+        *str = tolower(*str);
     }
     
     return origin;
