@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#include <ctype.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -162,6 +163,18 @@ static zend_always_inline long zend_compat_hash_find_long(HashTable *ht, char *k
     }
 
     return -1;
+}
+
+static char *strtolower(char *str)
+{
+    char *origin = str;
+
+    for (; *str != '\0'; str++)
+    {
+        *str = tolowwer(*str);
+    }
+    
+    return origin;
 }
 
 #define T(offset) (*EX_TMP_VAR(zdata, offset))
@@ -2068,7 +2081,7 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
     BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, real_execute_data);
 
     // 如果是指定的追踪函数，获取函数参数
-    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
         argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
         if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
             MAKE_STD_ZVAL(function_argument);
@@ -2087,7 +2100,7 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
 #endif
     
     // 如果是指定的追踪函数，获取函数返回值
-    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
         if(hp_profile_flag && EG(return_value_ptr_ptr)) {
             MAKE_STD_ZVAL(function_result);
             array_init(function_result);
@@ -2184,7 +2197,7 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
         BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, execute_data);
 
         // 如果是指定的追踪函数，获取函数参数
-        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
             argNum = ZEND_CALL_NUM_ARGS(execute_data);
             if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
                 MAKE_STD_ZVAL(function_argument);
@@ -2218,7 +2231,7 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
     if (func)
     {
         // 如果是指定的追踪函数，获取函数返回值
-        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(ZP_G(trace_func), func) == 0) {
+        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
             if(hp_profile_flag && EG(opline_ptr) && execute_data->opline) {
                 MAKE_STD_ZVAL(function_result);
                 array_init(function_result);
