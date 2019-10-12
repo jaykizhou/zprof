@@ -702,7 +702,7 @@ void zp_trace_callback_sql_commit(char *symbol, zend_execute_data *data TSRMLS_D
 
 void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRMLS_DC)
 {
-    zval *argument_element, *mysql_result, *pa, *counts, *row = NULL, *dbname = NULL; 
+    zval *argument_element, *link, *mysql_result = NULL, *pa, *counts, *row = NULL, *dbname = NULL; 
     zend_class_entry *ce;
     char *sc = "select database() as zp_dbname;";
     char *key = "zp_dbname";
@@ -713,8 +713,10 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     zval **tmpzval;
     HashTable *ht;
     zval *sqlArray;
+    zval fname;
 
     if (strcmp(symbol, "mysqli_query") == 0 || strcmp(symbol, "mysql_query") == 0) {
+        link = ZEND_CALL_ARG(data, 1);
         argument_element = ZEND_CALL_ARG(data, 2);
 
         if (Z_TYPE_P(argument_element) != IS_STRING) {
@@ -731,19 +733,33 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         MAKE_STD_ZVAL(pa);
         ZVAL_STRING(pa, sc, 1);
 
-        zend_call_method_with_1_params(&data->object, ce, NULL, "mysqli_query", &mysql_result, pa);
+        // 执行 mysqli_query 获取当前执行的数据库名
+        zval **params_array[2];
+        params_array[0] = &link;
+        params_array[1] = &pa;
 
-        // $mysql->query 有结果，再调用$mysql_result->fetch_assoc 获取具体返回数据
-        if(mysql_result) {
-            ce = Z_OBJCE_P(mysql_result);
-            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch_assoc", &row);
+        ZVAL_STRING(&fname, "mysqli_query", 0);
 
-            // $mysql_result->fetch_assoc 有返回结果
-            if(row) {
-                dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
-            }
+        if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, &mysql_result, 2, params_array, 1, NULL TSRMLS_CC))
+        {
+            zval_ptr_dtor(&pa);
+            return ;
+        }
 
+        // 如果 mysqli_query 返回结果，执行mysqli_fetch_assoc 获取具体返回数据
+        zval **params[1];
+        params[0] = &mysql_result;
+        ZVAL_STRING(&fname, "mysqli_fetch_assoc", 0);
+
+        if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, &row, 1, params, 1, NULL TSRMLS_CC))
+        {
             zval_ptr_dtor(&mysql_result);
+            return ;
+        }
+
+        // mysqli_fetch_assoc 有返回结果
+        if(row) {
+            dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
         }
 
         MAKE_STD_ZVAL(counts);
@@ -754,12 +770,6 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
             add_assoc_string(counts, "dbname", Z_STRVAL_P(dbname), 1);
         }
         
-        // 释放$mysql_result->fetch_assoc 结果空间，
-        // 如果在上面释放，会导致dbname获取不到数据库名
-        if(row) {
-            zval_ptr_dtor(&row);
-        }
-
         // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
         ht = Z_ARRVAL_P(ZP_G(trace));
         if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
@@ -775,8 +785,16 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         // 类似于：$trace['sql'][] = $count;
         add_next_index_zval(sqlArray, counts);
 
-        // 释放参数的空间
+        // 释放空间
         zval_ptr_dtor(&pa);
+
+        if(mysql_result) {
+            zval_ptr_dtor(&mysql_result);
+        }
+
+        if(row) {
+            zval_ptr_dtor(&row);
+        }
     } else {
         // 对象模式执行，获取执行的SQL语句
         argument_element = ZEND_CALL_ARG(data, 1);
