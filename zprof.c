@@ -775,6 +775,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         MAKE_STD_ZVAL(counts);
         array_init(counts);
         add_assoc_string(counts, "sql", Z_STRVAL_P(argument_element), 1);
+        add_assoc_long(counts, "no", ZP_G(function_nums));
 
         if(dbname && Z_TYPE_P(dbname) == IS_STRING) 
         {
@@ -852,6 +853,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         MAKE_STD_ZVAL(counts);
         array_init(counts);
         add_assoc_string(counts, "sql", Z_STRVAL_P(argument_element), 1);
+        add_assoc_long(counts, "no", ZP_G(function_nums));
 
         if(dbname && Z_TYPE_P(dbname) == IS_STRING) 
         {
@@ -927,6 +929,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             MAKE_STD_ZVAL(counts);
             array_init(counts);
             add_assoc_string(counts, "url", Z_STRVAL_P(option), 1);
+            add_assoc_long(counts, "no", ZP_G(function_nums));
 
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
             ht = Z_ARRVAL_P(ZP_G(trace));
@@ -1871,13 +1874,13 @@ void hp_mode_hier_beginfn_cb(hp_entry_t **entries, hp_entry_t *current, zend_exe
     zp_trace_callback *callback;
     int recurse_level = 0;
 
-    // if (data != NULL)
-    // {
-    //     if (hp_trace_callbacks_filter_exist(current->hash_code TSRMLS_CC) && zend_hash_find(ZP_G(trace_callbacks), current->name_hprof, strlen(current->name_hprof) + 1, (void **)&callback) == SUCCESS)
-    //     {
-    //         (*callback)(current->name_hprof, data TSRMLS_CC);
-    //     }
-    // }
+    if (data != NULL)
+    {
+        if (hp_trace_callbacks_filter_exist(current->hash_code TSRMLS_CC) && zend_hash_find(ZP_G(trace_callbacks), current->name_hprof, strlen(current->name_hprof) + 1, (void **)&callback) == SUCCESS)
+        {
+            (*callback)(current->name_hprof, data TSRMLS_CC);
+        }
+    }
 
     if ((ZP_G(zprof_flags) & ZPROF_FLAGS_NO_HIERACHICAL) == 0)
     {
@@ -1959,15 +1962,6 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     /* Get end tsc counter */
     tsc_end = cycle_timer();
     wt = get_us_from_tsc(tsc_end - top->tsc_start TSRMLS_CC);
-
-    zp_trace_callback *callback;
-    if (data != NULL)
-    {
-        if (hp_trace_callbacks_filter_exist(top->hash_code TSRMLS_CC) && zend_hash_find(ZP_G(trace_callbacks), top->name_hprof, strlen(top->name_hprof) + 1, (void **)&callback) == SUCCESS)
-        {
-            (*callback)(top->name_hprof, data TSRMLS_CC);
-        }
-    }
 
     // 可以考虑只记录执行时间大于 0.1 ms的函数
     //if (wt >= ZP_G(stack_threshold) * 1000)
