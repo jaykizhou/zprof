@@ -456,6 +456,7 @@ PHP_MINIT_FUNCTION(zprof)
     ZP_G(exceptions) = NULL;
     ZP_G(errors) = NULL;
     ZP_G(trace) = NULL;
+    ZP_G(etimes) = NULL;
 
     ZP_G(trace_callbacks) = NULL;
 
@@ -871,6 +872,9 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         zval_ptr_dtor(&pa);
     }
 
+    // 记录当前 sql 函数的序号
+    add_assoc_long(ZP_G(etimes), ZP_G(function_nums), 0);  
+
     // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
     ht = Z_ARRVAL_P(ZP_G(trace));
     if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
@@ -931,6 +935,9 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             add_assoc_string(counts, "url", Z_STRVAL_P(option), 1);
             add_assoc_long(counts, "no", ZP_G(function_nums));
 
+            // 记录当前 sql 函数的序号
+            add_assoc_long(ZP_G(etimes), ZP_G(function_nums), 0);  
+
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
             ht = Z_ARRVAL_P(ZP_G(trace));
             if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
@@ -988,6 +995,7 @@ PHP_RINIT_FUNCTION(zprof)
     ZP_G(exceptions) = NULL;
     ZP_G(errors) = NULL;
     ZP_G(trace) = NULL;
+    ZP_G(etimes) = NULL;
 
     return SUCCESS;
 }
@@ -1304,6 +1312,13 @@ void hp_init_profiler_state(TSRMLS_D)
     ALLOC_INIT_ZVAL(ZP_G(trace));
     array_init(ZP_G(trace));
 
+    if (ZP_G(etimes))
+    {
+        zval_ptr_dtor(&ZP_G(etimes));
+    }
+    ALLOC_INIT_ZVAL(ZP_G(etimes));
+    array_init(ZP_G(etimes));
+
     // 重置布隆过滤器
     memset(ZP_G(trace_callbacks_filter), 0, ZPROF_FILTERED_FUNCTION_SIZE);
 
@@ -1348,6 +1363,12 @@ void hp_clean_profiler_state(TSRMLS_D)
     {
         zval_ptr_dtor(&ZP_G(trace));
         ZP_G(trace) = NULL;
+    }
+
+    if (ZP_G(etimes))
+    {
+        zval_ptr_dtor(&ZP_G(etimes));
+        ZP_G(etimes) = NULL;
     }
 
     ZP_G(entries) = NULL;
@@ -1940,6 +1961,7 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     uint64 tsc_end;
     double wt, cpu;
     zp_trace_callback *callback;
+    HashTable *ht;
 
     zval *trace;
     int i, len;
@@ -2008,6 +2030,13 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     }
 
     ZP_G(func_hash_counters)[top->hash_code]--;
+
+    // 记录 curl、sql 函数的执行时间
+    ht = Z_ARRVAL_P(ZP_G(etimes));
+    if (zend_hash_index_exists(ht, ZP_G(function_nums)) == SUCCESS)
+    {
+        add_assoc_long(ZP_G(etimes), ZP_G(function_nums), wt); 
+    }
 }
 
 /**
@@ -2706,6 +2735,7 @@ PHP_FUNCTION(zprof_disable)
     add_assoc_zval(return_value, "exception", ZP_G(exceptions));
     add_assoc_zval(return_value, "error", ZP_G(errors));
     add_assoc_zval(return_value, "trace", ZP_G(trace));
+    add_assoc_zval(return_value, "etimes", ZP_G(etimes));
 
     return;
 }

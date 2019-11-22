@@ -139,6 +139,7 @@ ZEND_BEGIN_MODULE_GLOBALS(hp)
     zval            *exceptions;        // 保存执行中所有异常信息
     zval            *errors;            // 保存执行中所有错误信息
     zval            *trace;             // 保存所有sql、redis等特殊函数执行信息，如sql语句
+    zval            *etimes;            // 保存一些函数的执行时间
 
     /* Top of the profile stack */
     hp_entry_t      *entries;
