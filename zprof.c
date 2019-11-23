@@ -1018,7 +1018,7 @@ PHP_MINFO_FUNCTION(zprof)
     php_info_print_table_start();
     php_info_print_table_header(2, "zprof", ZPROF_VERSION);
 
-    php_info_print_table_row(2, "stack_threshold (zprof.stack_threshold)", INI_FLT("zprof.stack_threshold"));
+    php_info_print_table_row(2, "stack_threshold (zprof.stack_threshold)", "100 μs");
 
     php_info_print_table_end();
 }
@@ -1274,7 +1274,7 @@ void hp_init_profiler_state(TSRMLS_D)
         ZP_G(entries) = NULL;
     }
 
-    ZP_G(stack_threshold) = INI_FLT("zprof.stack_threshold");
+    ZP_G(stack_threshold) = INI_INT("zprof.stack_threshold");
 
     if (ZP_G(stats_count))
     {
