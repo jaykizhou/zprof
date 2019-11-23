@@ -394,7 +394,7 @@ PHP_INI_BEGIN()
 /**
  * INI-Settings are always used by the extension, but by the PHP library.
  */
-PHP_INI_ENTRY("zprof.stack_threshold", "0", PHP_INI_ALL, NULL)
+PHP_INI_ENTRY("zprof.stack_threshold", "100", PHP_INI_ALL, NULL)
 PHP_INI_ENTRY("zprof.zpkey", "zpkey", PHP_INI_ALL, NULL)
 
 PHP_INI_END()
@@ -423,7 +423,7 @@ PHP_GINIT_FUNCTION(hp) {
     hp_globals->compile_wt = 0.0;
     hp_globals->cpu_start = 0;
     hp_globals->start_time = 0;
-    hp_globals->stack_threshold = 0.1;
+    hp_globals->stack_threshold = 0;
 
     hp_globals->function_nums = 0;
 
@@ -1994,12 +1994,12 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
         zend_hash_index_update(ht, ZP_G(function_nums), (void *) &tmp, sizeof(zval *), NULL);
     }
 
-    // 可以考虑只记录执行时间大于 0.1 ms的函数
-    //if (wt >= ZP_G(stack_threshold) * 1000)
-    //{
-    //    ZP_G(func_hash_counters)[top->hash_code]--;
-    //    return ;
-    //}
+    // 可以考虑只记录执行时间大于 stack_threshold 微妙的函数，wt 的单位为 微妙
+    if (wt >= ZP_G(stack_threshold))
+    {
+       ZP_G(func_hash_counters)[top->hash_code]--;
+       return ;
+    }
 
     if (ZP_G(zprof_flags) & ZPROF_FLAGS_CPU)
     {
