@@ -873,7 +873,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     }
 
     // 记录当前 sql 函数的序号
-    add_assoc_long(ZP_G(etimes), ZP_G(function_nums), 0);  
+    add_index_long(ZP_G(etimes), ZP_G(function_nums), 0);  
 
     // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
     ht = Z_ARRVAL_P(ZP_G(trace));
@@ -936,7 +936,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             add_assoc_long(counts, "no", ZP_G(function_nums));
 
             // 记录当前 sql 函数的序号
-            add_assoc_long(ZP_G(etimes), ZP_G(function_nums), 0);  
+            add_index_long(ZP_G(etimes), ZP_G(function_nums), 0);  
 
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
             ht = Z_ARRVAL_P(ZP_G(trace));
@@ -1963,7 +1963,7 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     zp_trace_callback *callback;
     HashTable *ht;
 
-    zval *trace;
+    zval *trace, *tmp;
     int i, len;
 
     /* Get the stat array */
@@ -2033,10 +2033,13 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
 
     // 记录 curl、sql 函数的执行时间
     ht = Z_ARRVAL_P(ZP_G(etimes));
-    if (zend_hash_index_exists(ht, ZP_G(function_nums)) == SUCCESS)
+    if (zend_hash_index_exists(ht, ZP_G(function_nums)))
     {
-        add_assoc_long(ZP_G(etimes), ZP_G(function_nums), wt); 
+        MAKE_STD_ZVAL(tmp);
+        ZVAL_LONG(tmp, wt);
+        zend_hash_index_update(ht, ZP_G(function_nums), (void *) &tmp, sizeof(zval *), NULL);
     }
+    
 }
 
 /**
