@@ -1018,7 +1018,7 @@ PHP_MINFO_FUNCTION(zprof)
     php_info_print_table_start();
     php_info_print_table_header(2, "zprof", ZPROF_VERSION);
 
-    php_info_print_table_row(2, "stack_threshold (zprof.stack_threshold)", "100 μs");
+    php_info_print_table_row(2, "stack_threshold (zprof.stack_threshold)", "执行时间小于该值的函数不进行统计，单位：μs");
 
     php_info_print_table_end();
 }
