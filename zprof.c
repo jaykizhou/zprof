@@ -1985,9 +1985,21 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     tsc_end = cycle_timer();
     wt = get_us_from_tsc(tsc_end - top->tsc_start TSRMLS_CC);
 
+    // 记录 curl、sql 函数的执行时间
+    ht = Z_ARRVAL_P(ZP_G(etimes));
+    if (zend_hash_index_exists(ht, ZP_G(function_nums)))
+    {
+        MAKE_STD_ZVAL(tmp);
+        ZVAL_LONG(tmp, wt);
+        zend_hash_index_update(ht, ZP_G(function_nums), (void *) &tmp, sizeof(zval *), NULL);
+    }
+
     // 可以考虑只记录执行时间大于 0.1 ms的函数
     //if (wt >= ZP_G(stack_threshold) * 1000)
-    //{}
+    //{
+    //    ZP_G(func_hash_counters)[top->hash_code]--;
+    //    return ;
+    //}
 
     if (ZP_G(zprof_flags) & ZPROF_FLAGS_CPU)
     {
@@ -2030,15 +2042,6 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     }
 
     ZP_G(func_hash_counters)[top->hash_code]--;
-
-    // 记录 curl、sql 函数的执行时间
-    ht = Z_ARRVAL_P(ZP_G(etimes));
-    if (zend_hash_index_exists(ht, ZP_G(function_nums)))
-    {
-        MAKE_STD_ZVAL(tmp);
-        ZVAL_LONG(tmp, wt);
-        zend_hash_index_update(ht, ZP_G(function_nums), (void *) &tmp, sizeof(zval *), NULL);
-    }
     
 }
 
