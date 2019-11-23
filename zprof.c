@@ -1995,7 +1995,7 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     }
 
     // 可以考虑只记录执行时间大于 stack_threshold 微妙的函数，wt 的单位为 微妙
-    if (wt >= ZP_G(stack_threshold))
+    if (wt < ZP_G(stack_threshold))
     {
        ZP_G(func_hash_counters)[top->hash_code]--;
        return ;
