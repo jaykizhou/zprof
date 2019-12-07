@@ -484,14 +484,14 @@ PHP_MINIT_FUNCTION(zprof)
     _zend_execute_internal = zend_execute_internal;
     zend_execute_internal = hp_execute_internal;
 
-    if (zend_throw_exception_hook)
-    {
-        old_throw_exception_hook = zend_throw_exception_hook;
-    }
-    zend_throw_exception_hook = zp_throw_exception_hook;
+    // if (zend_throw_exception_hook)
+    // {
+    //     old_throw_exception_hook = zend_throw_exception_hook;
+    // }
+    // zend_throw_exception_hook = zp_throw_exception_hook;
 
-    old_error_cb = zend_error_cb;
-    zend_error_cb = zp_error_cb;
+    // old_error_cb = zend_error_cb;
+    // zend_error_cb = zp_error_cb;
 
 #if defined(DEBUG)
     /* To make it random number generator repeatable to ease testing. */
@@ -2738,8 +2738,8 @@ PHP_FUNCTION(zprof_disable)
 
     add_assoc_zval(return_value, "profile", ZP_G(stats_count));
     add_assoc_zval(return_value, "debugtrace", ZP_G(debug_trace));
-    add_assoc_zval(return_value, "exception", ZP_G(exceptions));
-    add_assoc_zval(return_value, "error", ZP_G(errors));
+    //add_assoc_zval(return_value, "exception", ZP_G(exceptions));
+    //add_assoc_zval(return_value, "error", ZP_G(errors));
     add_assoc_zval(return_value, "trace", ZP_G(trace));
     add_assoc_zval(return_value, "etimes", ZP_G(etimes));
 
