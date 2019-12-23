@@ -73,17 +73,6 @@ typedef unsigned int uint32;
 typedef unsigned char uint8;
 #endif
 
-
-struct _zend_string {
-  char *val;
-  int   len;
-  int   persistent;
-};
-typedef struct _zend_string zend_string;
-typedef long zend_long;
-typedef int strsize_t;
-typedef zend_uint uint32_t;
-
 /**
  * *****************************
  * GLOBAL DATATYPES AND TYPEDEFS
@@ -106,7 +95,7 @@ typedef struct hp_entry_t {
     long int                pmu_start_hprof;              /* peak memory usage */
     struct hp_entry_t      *prev_hprof;    /* ptr to prev entry being profiled */
     uint8                   hash_code;     /* hash_code for the function name  */
-    zval                  **debugtrace;    // 记录函数调用的参数及返回值
+    zval                   *debugtrace;    // 记录函数调用的参数及返回值
     int                     seq_no;        // 函数调用序号,即第几个调用
 } hp_entry_t;
 
@@ -134,12 +123,12 @@ ZEND_BEGIN_MODULE_GLOBALS(hp)
     uint32 zprof_flags;
     
     /* Holds all the Zprof statistics */
-    zval            *stats_count;       // 保存所有函数的消耗时间、内存等性能分析数据
-    zval            *debug_trace;       // 保存所有函数的参数及返回值 
-    zval            *exceptions;        // 保存执行中所有异常信息
-    zval            *errors;            // 保存执行中所有错误信息
-    zval            *trace;             // 保存所有sql、redis等特殊函数执行信息，如sql语句
-    zval            *etimes;            // 保存一些函数的执行时间
+    zval            stats_count;       // 保存所有函数的消耗时间、内存等性能分析数据
+    zval            debug_trace;       // 保存所有函数的参数及返回值 
+    zval            exceptions;        // 保存执行中所有异常信息
+    zval            errors;            // 保存执行中所有错误信息
+    zval            trace;             // 保存所有sql、redis等特殊函数执行信息，如sql语句
+    zval            etimes;            // 保存一些函数的执行时间
 
     /* Top of the profile stack */
     hp_entry_t      *entries;
