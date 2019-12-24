@@ -52,114 +52,29 @@
 #endif
 #include "zend_stream.h"
 
-static inline void **hp_get_execute_arguments(zend_execute_data *data)
-{
-    void **p;
-
-    p = data->function_state.arguments;
-
-#if PHP_VERSION_ID >= 50500
-    /*
-     * With PHP 5.5 zend_execute cannot be overwritten by extensions anymore.
-     * instead zend_execute_ex has to be used. That however does not have
-     * function_state.arguments populated for non-internal functions.
-     * As per UPGRADING.INTERNALS we are accessing prev_execute_data which
-     * has this information (for whatever reasons).
-     */
-    if (p == NULL)
-    {
-        p = (*data).prev_execute_data->function_state.arguments;
-    }
-#endif
-
-    return p;
-}
-
-static inline int hp_num_execute_arguments(zend_execute_data *data)
-{
-    void **p = hp_get_execute_arguments(data);
-    return (int)(zend_uintptr_t)*p;
-}
-
-static inline zval *hp_get_execute_argument(zend_execute_data *data, int n)
-{
-    void **p = hp_get_execute_arguments(data);
-    int arg_count = (int)(zend_uintptr_t)*p;
-    return *(p - (arg_count - n));
-}
-
-static zend_always_inline zend_string *zend_string_alloc(int len, int persistent)
-{
-    /* single alloc, so free the buf, will also free the struct */
-    char *buf = safe_pemalloc(sizeof(zend_string) + len + 1, 1, 0, persistent);
-    zend_string *str = (zend_string *)(buf + len + 1);
-
-    str->val = buf;
-    str->len = len;
-    str->persistent = persistent;
-
-    return str;
-}
-
-static zend_always_inline zend_string *zend_string_init(const char *str, size_t len, int persistent)
-{
-    zend_string *ret = zend_string_alloc(len, persistent);
-
-    memcpy(ret->val, str, len);
-    ret->val[len] = '\0';
-    return ret;
-}
-
-static zend_always_inline void zend_string_release(zend_string *s)
-{
-    if (s == NULL)
-    {
-        return;
-    }
-
-    pefree(s->val, s->persistent);
-}
-
-#define ZEND_CALL_NUM_ARGS(call) hp_num_execute_arguments(call)
-#define ZEND_CALL_ARG(call, n) hp_get_execute_argument(call, n - 1)
-
 #define register_trace_callback(function_name, cb)                                                                              \
     do {                                                                                                                        \
-        zend_hash_update(ZP_G(trace_callbacks), function_name, sizeof(function_name), &cb, sizeof(zp_trace_callback *), NULL);  \
+        zend_hash_str_update_mem(ZP_G(trace_callbacks), function_name, sizeof(function_name), &cb, sizeof(zp_trace_callback *));  \
         hp_init_trace_callbacks_filter(function_name TSRMLS_CC);                                                                \   
     } while(0)
 
 static zend_always_inline zval *zend_compat_hash_find_const(HashTable *ht, const char *key, strsize_t len)
 {
-    zval **tmp, *result;
-    if (zend_hash_find(ht, key, len + 1, (void **)&tmp) == SUCCESS)
-    {
-        result = *tmp;
-        return result;
-    }
-    return NULL;
+    return zend_hash_str_find(ht, key, len);
 }
 
 static zend_always_inline zval *zend_compat_hash_index_find(HashTable *ht, zend_ulong idx)
 {
-    zval **tmp, *result;
-
-    if (zend_hash_index_find(ht, idx, (void **)&tmp) == FAILURE)
-    {
-        return NULL;
-    }
-
-    result = *tmp;
-    return result;
+    return zend_hash_index_find(ht, idx);
 }
 
 static zend_always_inline long zend_compat_hash_find_long(HashTable *ht, char *key, strsize_t len)
 {
-    long *idx_ptr = NULL;
+    long idx;
+    zval *zv;
 
-    if (zend_hash_find(ht, key, len + 1, (void **)&idx_ptr) == SUCCESS)
-    {
-        return *idx_ptr;
+    if (zv = zend_hash_str_find(ht, key, len)) {
+        return Z_LVAL_P(zv);
     }
 
     return -1;
@@ -275,13 +190,8 @@ static zend_always_inline zp_add_array_from_ptr(zval *zv, zval *store)
 
 typedef void (*zp_trace_callback)(char *symbol, zend_execute_data *data TSRMLS_DC);
 
-#if PHP_VERSION_ID < 50500
-static void (*_zend_execute)(zend_op_array *ops TSRMLS_DC);
-static void (*_zend_execute_internal)(zend_execute_data *data, int ret TSRMLS_DC);
-#else
-static void (*_zend_execute_ex)(zend_execute_data *execute_data TSRMLS_DC);
-static void (*_zend_execute_internal)(zend_execute_data *data, struct _zend_fcall_info *fci, int ret TSRMLS_DC);
-#endif
+static void (*_zend_execute_ex) (zend_execute_data *execute_data);
+static void (*_zend_execute_internal) (zend_execute_data *execute_data, zval *return_value);
 
 /* Pointer to the original compile function */
 static zend_op_array *(*_zend_compile_file)(zend_file_handle *file_handle, int type TSRMLS_DC);
@@ -289,26 +199,17 @@ static zend_op_array *(*_zend_compile_file)(zend_file_handle *file_handle, int t
 /* Pointer to the original compile string function (used by eval) */
 static zend_op_array *(*_zend_compile_string)(zval *source_string, char *filename TSRMLS_DC);
 
-ZEND_DLEXPORT zend_op_array *hp_compile_file(zend_file_handle *file_handle, int type TSRMLS_DC);
-ZEND_DLEXPORT zend_op_array *hp_compile_string(zval *source_string, char *filename TSRMLS_DC);
+ZEND_DLEXPORT zend_op_array* hp_compile_file(zend_file_handle *file_handle, int type TSRMLS_DC);
+ZEND_DLEXPORT zend_op_array* hp_compile_string(zval *source_string, char *filename TSRMLS_DC);
+ZEND_DLEXPORT void hp_execute_ex (zend_execute_data *execute_data);
 
-static void (*old_throw_exception_hook)(zval *exception TSRMLS_DC);
-void (*old_error_cb)(int type, const char *error_filename, const uint error_lineno, const char *format, va_list args);
+ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data, zval *return_value);
 
-void zp_throw_exception_hook(zval *exception TSRMLS_DC);
-void zp_error_cb(int type, const char *error_filename, const uint error_lineno, const char *format, va_list args);
+/* error callback replacement functions */
+static void tideways_throw_exception_hook(zval *exception TSRMLS_DC);
 
-#if PHP_VERSION_ID < 50500
-ZEND_DLEXPORT void hp_execute(zend_op_array *ops TSRMLS_DC);
-#else
-ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC);
-#endif
-
-#if PHP_VERSION_ID < 50500
-ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data, int ret TSRMLS_DC);
-#else
-ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data, struct _zend_fcall_info *fci, int ret TSRMLS_DC);
-#endif
+int (*tw_original_gc_collect_cycles)(void);
+int tw_gc_collect_cycles(void);
 
 /* Bloom filter for function names to be ignored */
 #define INDEX_2_BYTE(index) (index >> 3)
