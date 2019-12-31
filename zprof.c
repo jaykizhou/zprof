@@ -309,11 +309,12 @@ PHP_GINIT_FUNCTION(hp) {
     hp_globals->zprof_flags = 0;
     hp_globals->trace_callbacks = NULL;
 
-    hp_globals->stats_count = NULL;
-    hp_globals->debug_trace = NULL;
-    hp_globals->exceptions = NULL;
-    hp_globals->errors = NULL;
-    hp_globals->trace = NULL;
+    ZVAL_UNDEF(&hp_globals->stats_count);
+    ZVAL_UNDEF(&hp_globals->debug_trace);
+    ZVAL_UNDEF(&hp_globals->exceptions);
+    ZVAL_UNDEF(&hp_globals->errors);
+    ZVAL_UNDEF(&hp_globals->trace);
+    ZVAL_UNDEF(&hp_globals->etimes);
 
     hp_globals->entries = NULL;
     hp_globals->entry_free_list = NULL;
@@ -352,12 +353,12 @@ PHP_MINIT_FUNCTION(zprof)
     /* Get the number of available logical CPUs. */
     ZP_G(timebase_factor) = get_timebase_factor();
 
-    ZP_G(stats_count) = NULL;
-    ZP_G(debug_trace) = NULL;
-    ZP_G(exceptions) = NULL;
-    ZP_G(errors) = NULL;
-    ZP_G(trace) = NULL;
-    ZP_G(etimes) = NULL;
+    // ZP_G(stats_count) = NULL;
+    // ZP_G(debug_trace) = NULL;
+    // ZP_G(exceptions) = NULL;
+    // ZP_G(errors) = NULL;
+    // ZP_G(trace) = NULL;
+    // ZP_G(etimes) = NULL;
 
     ZP_G(trace_callbacks) = NULL;
 
@@ -420,15 +421,15 @@ PHP_MSHUTDOWN_FUNCTION(zprof)
     zend_compile_file = _zend_compile_file;
     zend_compile_string = _zend_compile_string;
 
-    if (old_throw_exception_hook)
-    {
-        zend_throw_exception_hook = old_throw_exception_hook;
-    }
+    // if (old_throw_exception_hook)
+    // {
+    //     zend_throw_exception_hook = old_throw_exception_hook;
+    // }
 
-    if (old_error_cb)
-    {
-        zend_error_cb = old_error_cb;
-    }
+    // if (old_error_cb)
+    // {
+    //     zend_error_cb = old_error_cb;
+    // }
 
     UNREGISTER_INI_ENTRIES();
 
@@ -556,8 +557,12 @@ zend_string *zp_pcre_match(char *pattern, strsize_t len, zval *subject TSRMLS_DC
     zval *subpats;
     pcre_cache_entry *pce;
 
-    if ((pce = pcre_get_compiled_regex_cache(pattern, len TSRMLS_CC)) == NULL)
-    {
+    zend_string *pattern_str;
+
+    pattern_str = zend_string_init(pattern, len, 0);
+
+    if ((pce = pcre_get_compiled_regex_cache(pattern_str)) == NULL) {
+        zend_string_release(pattern_str);
         return NULL;
     }
 
@@ -579,6 +584,8 @@ zend_string *zp_pcre_match(char *pattern, strsize_t len, zval *subject TSRMLS_DC
         }
     }
 
+    zend_string_release(pattern_str);
+
     zval_ptr_dtor(&return_value);
     zval_ptr_dtor(&subpats);
 
@@ -591,7 +598,7 @@ void zp_trace_callback_pdo_stmt_execute(char *symbol, zend_execute_data *data TS
 {
     long idx;
 
-    pdo_stmt_t *stmt = (pdo_stmt_t *)zend_object_store_get_object_by_handle(Z_OBJ_HANDLE_P(data->object) TSRMLS_CC);
+    pdo_stmt_t *stmt = (pdo_stmt_t*) ((char*) Z_OBJ_P(EX_OBJ(data)) - Z_OBJ_HT_P(EX_OBJ(data))->offset);
 
     //php_printf("pdo_stmt sql %s\n", stmt->query_string);
 
@@ -821,11 +828,10 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
 
     ZVAL_STRING(&fname, "curl_getinfo", 0);
 
-    zval **pa[1];
-    pa[0] = &argument;
+    zval params[1];
+    ZVAL_RES(&params[0], Z_RES_P(argument));
 
-    if (SUCCESS == call_user_function_ex(EG(function_table), NULL, &fname, &retval_ptr, 1, pa, 1, NULL TSRMLS_CC))
-    {
+    if (SUCCESS == call_user_function_ex(EG(function_table), NULL, &fname, retval_ptr, 1, params, 1, NULL)) {
 
         option = zend_compat_hash_find_const(Z_ARRVAL_P(retval_ptr), "url", sizeof("url") - 1);
 
@@ -857,6 +863,8 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
 
         zval_ptr_dtor(&retval_ptr);
     }
+
+    zend_string_release(Z_STR(fname));
 
     return;
 }
@@ -891,12 +899,12 @@ void zp_trace_callback_file_get_contents(char *symbol, zend_execute_data *data T
  */
 PHP_RINIT_FUNCTION(zprof)
 {
-    //ZP_G(stats_count) = NULL;
-    ZP_G(debug_trace) = NULL;
-    ZP_G(exceptions) = NULL;
-    ZP_G(errors) = NULL;
-    ZP_G(trace) = NULL;
-    ZP_G(etimes) = NULL;
+    ZVAL_NULL(&ZP_G(stats_count));
+    ZVAL_NULL(&ZP_G(debug_trace));
+    ZVAL_NULL(&ZP_G(exceptions));
+    ZVAL_NULL(&ZP_G(errors));
+    ZVAL_NULL(&ZP_G(trace));
+    ZVAL_NULL(&ZP_G(etimes));
 
     return SUCCESS;
 }
@@ -1177,48 +1185,23 @@ void hp_init_profiler_state(TSRMLS_D)
 
     ZP_G(stack_threshold) = INI_INT("zprof.stack_threshold");
 
-    if (ZP_G(stats_count))
-    {
-        zval_ptr_dtor(&ZP_G(stats_count));
-    }
+    hp_ptr_dtor(&ZP_G(stats_count));
+    array_init(&ZP_G(stats_count));
 
-    ALLOC_INIT_ZVAL(ZP_G(stats_count));
-    array_init(ZP_G(stats_count));
+    hp_ptr_dtor(&ZP_G(debug_trace));
+    array_init(&ZP_G(debug_trace));
 
-    if (ZP_G(debug_trace))
-    {
-        zval_ptr_dtor(&ZP_G(debug_trace));
-    }
-    ALLOC_INIT_ZVAL(ZP_G(debug_trace));
-    array_init(ZP_G(debug_trace));
+    hp_ptr_dtor(&ZP_G(exceptions));
+    array_init(&ZP_G(exceptions));
 
-    if (ZP_G(exceptions))
-    {
-        zval_ptr_dtor(&ZP_G(exceptions));
-    }
-    ALLOC_INIT_ZVAL(ZP_G(exceptions));
-    array_init(ZP_G(exceptions));
+    hp_ptr_dtor(&ZP_G(errors));
+    array_init(&ZP_G(errors));
 
-    if (ZP_G(errors))
-    {
-        zval_ptr_dtor(&ZP_G(errors));
-    }
-    ALLOC_INIT_ZVAL(ZP_G(errors));
-    array_init(ZP_G(errors));
+    hp_ptr_dtor(&ZP_G(trace));
+    array_init(&ZP_G(trace));
 
-    if (ZP_G(trace))
-    {
-        zval_ptr_dtor(&ZP_G(trace));
-    }
-    ALLOC_INIT_ZVAL(ZP_G(trace));
-    array_init(ZP_G(trace));
-
-    if (ZP_G(etimes))
-    {
-        zval_ptr_dtor(&ZP_G(etimes));
-    }
-    ALLOC_INIT_ZVAL(ZP_G(etimes));
-    array_init(ZP_G(etimes));
+    hp_ptr_dtor(&ZP_G(etimes));
+    array_init(&ZP_G(etimes));
 
     // 重置布隆过滤器
     memset(ZP_G(trace_callbacks_filter), 0, ZPROF_FILTERED_FUNCTION_SIZE);
@@ -1236,41 +1219,23 @@ void hp_init_profiler_state(TSRMLS_D)
  */
 void hp_clean_profiler_state(TSRMLS_D)
 {
-    if (ZP_G(stats_count))
-    {
-        zval_ptr_dtor(&ZP_G(stats_count));
-        ZP_G(stats_count) = NULL;
-    }
+    zval_ptr_dtor(&ZP_G(stats_count));
+    ZVAL_NULL(&ZP_G(stats_count));
 
-    if (ZP_G(debug_trace))
-    {
-        zval_ptr_dtor(&ZP_G(debug_trace));
-        ZP_G(debug_trace) = NULL;
-    }
+    zval_ptr_dtor(&ZP_G(debug_trace));
+    ZVAL_NULL(&ZP_G(debug_trace));
 
-    if (ZP_G(exceptions))
-    {
-        zval_ptr_dtor(&ZP_G(exceptions));
-        ZP_G(exceptions) = NULL;
-    }
+    zval_ptr_dtor(&ZP_G(exceptions));
+    ZVAL_NULL(&ZP_G(exceptions));
 
-    if (ZP_G(errors))
-    {
-        zval_ptr_dtor(&ZP_G(errors));
-        ZP_G(errors) = NULL;
-    }
+    zval_ptr_dtor(&ZP_G(errors));
+    ZVAL_NULL(&ZP_G(errors));
 
-    if (ZP_G(trace))
-    {
-        zval_ptr_dtor(&ZP_G(trace));
-        ZP_G(trace) = NULL;
-    }
+    zval_ptr_dtor(&ZP_G(trace));
+    ZVAL_NULL(&ZP_G(trace));
 
-    if (ZP_G(etimes))
-    {
-        zval_ptr_dtor(&ZP_G(etimes));
-        ZP_G(etimes) = NULL;
-    }
+    zval_ptr_dtor(&ZP_G(etimes));
+    ZVAL_NULL(&ZP_G(etimes));
 
     ZP_G(entries) = NULL;
     ZP_G(ever_enabled) = 0;
@@ -1569,42 +1534,20 @@ static char *hp_get_function_name(zend_execute_data *data TSRMLS_DC)
         return NULL;
     }
 
-    const char *func = NULL;
-    curr_func = data->function_state.function;
+    zend_string *func = NULL;
+    curr_func = data->func;
     func = curr_func->common.function_name;
 
-    if (!func)
-    {
-        // This branch includes execution of eval and include/require(_once) calls
-        // We assume it is not 1999 anymore and not much PHP code runs in the
-        // body of a file and if it is, we are ok with adding it to the caller's wt.
+    if (!func) {
         return NULL;
-    }
-
-    /* previously, the order of the tests in the "if" below was
-     * flipped, leading to incorrect function names in profiler
-     * reports. When a method in a super-type is invoked the
-     * profiler should qualify the function name with the super-type
-     * class name (not the class name based on the run-time type
-     * of the object.
-     */
-    if (curr_func->common.scope)
-    {
-        cls = curr_func->common.scope->name;
-    }
-    else if (data->object)
-    {
-        cls = Z_OBJCE(*data->object)->name;
-    }
-
-    if (cls)
-    {
-        char *sep = "::";
-        ret = hp_concat_char(cls, strlen(cls), func, strlen(func), sep, 2);
-    }
-    else
-    {
-        ret = estrdup(func);
+    } else if (curr_func->common.scope != NULL) {
+        char* sep = "::";
+        cls = curr_func->common.scope->name->val;
+        ret = hp_concat_char(cls, curr_func->common.scope->name->len, func->val, func->len, sep, 2);
+    } else {
+        ret = emalloc(ZSTR_LEN(func)+1);
+        strcpy(ret, ZSTR_VAL(func));
+        ret[ZSTR_LEN(func)] = '\0';
     }
 
     return ret;
@@ -1701,7 +1644,8 @@ void hp_inc_count(zval *counts, char *name, long count TSRMLS_DC)
     }
     else
     {
-        add_assoc_long(counts, name, count);
+        ZVAL_LONG(&val, count);
+        zend_hash_str_update(ht, name, strlen(name), &val);
     }
 }
 
@@ -1798,9 +1742,14 @@ void hp_mode_hier_beginfn_cb(hp_entry_t **entries, hp_entry_t *current, zend_exe
 
     if (data != NULL)
     {
-        if (hp_trace_callbacks_filter_exist(current->hash_code TSRMLS_CC) && zend_hash_find(ZP_G(trace_callbacks), current->name_hprof, strlen(current->name_hprof) + 1, (void **)&callback) == SUCCESS)
+        if (hp_trace_callbacks_filter_exist(current->hash_code TSRMLS_CC))
         {
-            (*callback)(current->name_hprof, data TSRMLS_CC);
+            callback = (zp_trace_callback *)zend_hash_str_find_ptr(TWG(trace_callbacks), current->name_hprof, strlen(current->name_hprof));
+
+            if (callback != NULL)
+            {
+                (*callback)(current->name_hprof, data TSRMLS_CC);
+            }
         }
     }
 
