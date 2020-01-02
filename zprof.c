@@ -865,7 +865,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             add_next_index_zval(curlArray, counts);
         }
 
-        zval_ptr_dtor(&retval_ptr);
+        zval_ptr_dtor(retval_ptr);
     }
 
     zend_string_release(Z_STR(fname));
@@ -1124,7 +1124,7 @@ void hp_init_trace_callbacks(TSRMLS_D)
     ZP_G(trace_callbacks) = NULL;
 
     ALLOC_HASHTABLE(ZP_G(trace_callbacks));
-    zend_hash_init(ZP_G(trace_callbacks), 255, NULL, hp_free_trace_cb, 0);
+    zend_hash_init(ZP_G(trace_callbacks), 255, NULL, (dtor_func_t *)hp_free_trace_cb, 0);
 
     //cb = zp_trace_callback_file_get_contents;
     //register_trace_callback("file_get_contents", cb);
@@ -1748,7 +1748,7 @@ void hp_mode_hier_beginfn_cb(hp_entry_t **entries, hp_entry_t *current, zend_exe
     {
         if (hp_trace_callbacks_filter_exist(current->hash_code TSRMLS_CC))
         {
-            callback = (zp_trace_callback *)zend_hash_str_find_ptr(TWG(trace_callbacks), current->name_hprof, strlen(current->name_hprof));
+            callback = (zp_trace_callback *)zend_hash_str_find_ptr(ZP_G(trace_callbacks), current->name_hprof, strlen(current->name_hprof));
 
             if (callback != NULL)
             {
