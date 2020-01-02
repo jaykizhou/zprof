@@ -113,7 +113,7 @@ if test "$PHP_ZPROF" != "no"; then
   ], [
     AC_MSG_RESULT([PHP 5.x])
   ], [
-    AC_MSG_ERROR([Don't support PHP 7.x])
+    AC_MSG_RESULT([PHP 7.x])
   ])
   export CPPFLAGS="$OLD_CPPFLAGS"
 
