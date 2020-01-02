@@ -52,6 +52,11 @@
 #endif
 #include "zend_stream.h"
 
+#define EX_OBJ(call) ((call->This.value.obj) ? &(call->This) : NULL)
+#define _DECLARE_ZVAL(name) zval name## _v; zval * name = &name## _v
+#define _ALLOC_INIT_ZVAL(name) ZVAL_NULL(name)
+#define hp_ptr_dtor(val) zval_ptr_dtor(val)
+
 typedef size_t strsize_t;
 /* removed/uneeded macros */
 #define TSRMLS_CC
