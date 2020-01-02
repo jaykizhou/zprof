@@ -52,6 +52,10 @@
 #endif
 #include "zend_stream.h"
 
+typedef size_t strsize_t;
+/* removed/uneeded macros */
+#define TSRMLS_CC
+
 #define register_trace_callback(function_name, cb)                                                                              \
     do {                                                                                                                        \
         zend_hash_str_update_mem(ZP_G(trace_callbacks), function_name, sizeof(function_name), &cb, sizeof(zp_trace_callback *));  \
@@ -96,96 +100,96 @@ static char *strtolower(char *str)
 
 zval *zp_zval_ptr(int op_type, const znode_op *node, zend_execute_data *zdata TSRMLS_DC)
 {
-    if (!zdata->opline) {
-        return NULL;
-    }
+    // if (!zdata->opline) {
+    //     return NULL;
+    // }
 
-    switch (op_type & 0x0F) {
-        case IS_CONST:
-            return node->zv;
-            break;
-        case IS_TMP_VAR:
-            return &T(node->var).tmp_var;
-            break;
-        case IS_VAR:
-            if (T(node->var).var.ptr) {
-                return T(node->var).var.ptr;
-            } else {
-                temp_variable *T = &T(node->var);
-                zval *str = T->str_offset.str;
+    // switch (op_type & 0x0F) {
+    //     case IS_CONST:
+    //         return node->zv;
+    //         break;
+    //     case IS_TMP_VAR:
+    //         return &T(node->var).tmp_var;
+    //         break;
+    //     case IS_VAR:
+    //         if (T(node->var).var.ptr) {
+    //             return T(node->var).var.ptr;
+    //         } else {
+    //             temp_variable *T = &T(node->var);
+    //             zval *str = T->str_offset.str;
 
-                if (T->str_offset.str->type != IS_STRING
-                        || ((int)T->str_offset.offset<0)
-                        || ((unsigned int) T->str_offset.str->value.str.len <= T->str_offset.offset)) {
-                    //zend_error(E_NOTICE, "Uninitialized string offset:  %d", T->str_offset.offset);
-                    T->tmp_var.value.str.val = STR_EMPTY_ALLOC();
-                    T->tmp_var.value.str.len = 0;
-                } else {
-                    char c = str->value.str.val[T->str_offset.offset];
+    //             if (T->str_offset.str->type != IS_STRING
+    //                     || ((int)T->str_offset.offset<0)
+    //                     || ((unsigned int) T->str_offset.str->value.str.len <= T->str_offset.offset)) {
+    //                 //zend_error(E_NOTICE, "Uninitialized string offset:  %d", T->str_offset.offset);
+    //                 T->tmp_var.value.str.val = STR_EMPTY_ALLOC();
+    //                 T->tmp_var.value.str.len = 0;
+    //             } else {
+    //                 char c = str->value.str.val[T->str_offset.offset];
 
-                    T->tmp_var.value.str.val = estrndup(&c, 1);
-                    T->tmp_var.value.str.len = 1;
-                }
-                T->tmp_var.refcount__gc=1;
-                T->tmp_var.is_ref__gc=1;
-                T->tmp_var.type = IS_STRING;
-                return &T->tmp_var;
-            }
-            break;
-        case IS_UNUSED:
-            return NULL;
-            break;
-    }
+    //                 T->tmp_var.value.str.val = estrndup(&c, 1);
+    //                 T->tmp_var.value.str.len = 1;
+    //             }
+    //             T->tmp_var.refcount__gc=1;
+    //             T->tmp_var.is_ref__gc=1;
+    //             T->tmp_var.type = IS_STRING;
+    //             return &T->tmp_var;
+    //         }
+    //         break;
+    //     case IS_UNUSED:
+    //         return NULL;
+    //         break;
+    // }
     return NULL;
 }
 
 // 获取zv中的值，保存到store数组中
 static zend_always_inline zp_add_array_from_ptr(zval *zv, zval *store)
 {
-    int tlen = 0;
-    char *tstr = NULL;
-    char value[128] = {0};
+    // int tlen = 0;
+    // char *tstr = NULL;
+    // char value[128] = {0};
     
-    switch(Z_TYPE_P(zv)) {
-        case IS_BOOL:
-            add_next_index_bool(store, Z_BVAL_P(zv));
-            break;
-        case IS_NULL:
-            add_next_index_null(store);
-            break;
-        case IS_LONG:
-            add_next_index_long(store, Z_LVAL_P(zv));
-            break;
-        case IS_DOUBLE:
-            add_next_index_double(store, Z_DVAL_P(zv));
-            break;
-        case IS_STRING:
-            add_next_index_string(store, Z_STRVAL_P(zv), 1);
-            break;
-        case IS_ARRAY:
-            Z_ADDREF_P(zv);
-            add_next_index_zval(store, zv);
-            break;
-        case IS_OBJECT:
-            if (Z_OBJ_HANDLER(*zv, get_class_name)) {
-                Z_OBJ_HANDLER(*zv, get_class_name)(zv, (const char **) &tstr, (zend_uint *) &tlen, 0 TSRMLS_CC);
-                snprintf(value, sizeof(value), "object(%s)#%d",tstr, Z_OBJ_HANDLE_P(zv));
-                efree(tstr);
-            } else {
-                snprintf(value, sizeof(value), "object(unknown)#%d", Z_OBJ_HANDLE_P(zv));
-            }
-            add_next_index_string(store, value, 1);
-            break;
-        case IS_RESOURCE:
-            tstr = (char *) zend_rsrc_list_get_rsrc_type(Z_LVAL_P(zv) TSRMLS_CC); 
-            snprintf(value, sizeof(value), "resource(%s)#%ld", tstr ? tstr : "Unknown", Z_LVAL_P(zv));
-            add_next_index_string(store, value, 1);
-            break;
-        default:
-            add_next_index_string(store, "unknown", 1);
-            break;
+    // switch(Z_TYPE_P(zv)) {
+    //     case IS_BOOL:
+    //         add_next_index_bool(store, Z_BVAL_P(zv));
+    //         break;
+    //     case IS_NULL:
+    //         add_next_index_null(store);
+    //         break;
+    //     case IS_LONG:
+    //         add_next_index_long(store, Z_LVAL_P(zv));
+    //         break;
+    //     case IS_DOUBLE:
+    //         add_next_index_double(store, Z_DVAL_P(zv));
+    //         break;
+    //     case IS_STRING:
+    //         add_next_index_string(store, Z_STRVAL_P(zv), 1);
+    //         break;
+    //     case IS_ARRAY:
+    //         Z_ADDREF_P(zv);
+    //         add_next_index_zval(store, zv);
+    //         break;
+    //     case IS_OBJECT:
+    //         if (Z_OBJ_HANDLER(*zv, get_class_name)) {
+    //             Z_OBJ_HANDLER(*zv, get_class_name)(zv, (const char **) &tstr, (zend_uint *) &tlen, 0 TSRMLS_CC);
+    //             snprintf(value, sizeof(value), "object(%s)#%d",tstr, Z_OBJ_HANDLE_P(zv));
+    //             efree(tstr);
+    //         } else {
+    //             snprintf(value, sizeof(value), "object(unknown)#%d", Z_OBJ_HANDLE_P(zv));
+    //         }
+    //         add_next_index_string(store, value, 1);
+    //         break;
+    //     case IS_RESOURCE:
+    //         tstr = (char *) zend_rsrc_list_get_rsrc_type(Z_LVAL_P(zv) TSRMLS_CC); 
+    //         snprintf(value, sizeof(value), "resource(%s)#%ld", tstr ? tstr : "Unknown", Z_LVAL_P(zv));
+    //         add_next_index_string(store, value, 1);
+    //         break;
+    //     default:
+    //         add_next_index_string(store, "unknown", 1);
+    //         break;
       
-    }
+    // }
 }
 
 typedef void (*zp_trace_callback)(char *symbol, zend_execute_data *data TSRMLS_DC);
@@ -553,10 +557,9 @@ zend_string *zp_pcre_match(char *pattern, strsize_t len, zval *subject TSRMLS_DC
 {
     zval *match = NULL;
     zend_string *result = NULL;
-    zval *return_value;
-    zval *subpats;
+    _DECLARE_ZVAL(return_value);
+    _DECLARE_ZVAL(subpats);
     pcre_cache_entry *pce;
-
     zend_string *pattern_str;
 
     pattern_str = zend_string_init(pattern, len, 0);
@@ -566,28 +569,24 @@ zend_string *zp_pcre_match(char *pattern, strsize_t len, zval *subject TSRMLS_DC
         return NULL;
     }
 
-    ALLOC_INIT_ZVAL(return_value);
-    ALLOC_INIT_ZVAL(subpats);
+    _ALLOC_INIT_ZVAL(return_value);
+    _ALLOC_INIT_ZVAL(subpats);
 
     pce->refcount++;
-    php_pcre_match_impl(pce, Z_STRVAL_P(subject), Z_STRLEN_P(subject), return_value, subpats, 0, 1, 0, 0 TSRMLS_CC);
-
+    tw_pcre_match_impl(pce, subject, return_value, subpats, 0, 1, 0, 0);
     pce->refcount--;
 
-    if (Z_LVAL_P(return_value) > 0 && Z_TYPE_P(subpats) == IS_ARRAY)
-    {
+    if (Z_LVAL_P(return_value) > 0 && Z_TYPE_P(subpats) == IS_ARRAY) {
         match = zend_compat_hash_index_find(Z_ARRVAL_P(subpats), 1);
 
-        if (match != NULL)
-        {
+        if (match != NULL) {
             result = zend_string_init(Z_STRVAL_P(match), Z_STRLEN_P(match), 0);
         }
     }
 
     zend_string_release(pattern_str);
-
-    zval_ptr_dtor(&return_value);
-    zval_ptr_dtor(&subpats);
+    hp_ptr_dtor(return_value);
+    hp_ptr_dtor(subpats);
 
     return result;
 }
@@ -2166,35 +2165,35 @@ ZEND_DLEXPORT zend_op_array *hp_compile_string(zval *source_string, char *filena
  */
 void zp_throw_exception_hook(zval *exception TSRMLS_DC)
 {
-    zval *message, *file, *line, *code;
-    zend_class_entry *default_ce;
-    zval *counts;
+    // zval *message, *file, *line, *code;
+    // zend_class_entry *default_ce;
+    // zval *counts;
 
-    if (!exception)
-    {
-        return;
-    }
+    // if (!exception)
+    // {
+    //     return;
+    // }
 
-    default_ce = zend_exception_get_default(TSRMLS_C);
+    // default_ce = zend_exception_get_default(TSRMLS_C);
 
-    message = zend_read_property(default_ce, exception, "message", sizeof("message") - 1, 0 TSRMLS_CC);
-    file = zend_read_property(default_ce, exception, "file", sizeof("file") - 1, 0 TSRMLS_CC);
-    line = zend_read_property(default_ce, exception, "line", sizeof("line") - 1, 0 TSRMLS_CC);
-    code = zend_read_property(default_ce, exception, "code", sizeof("code") - 1, 0 TSRMLS_CC);
+    // message = zend_read_property(default_ce, exception, "message", sizeof("message") - 1, 0 TSRMLS_CC);
+    // file = zend_read_property(default_ce, exception, "file", sizeof("file") - 1, 0 TSRMLS_CC);
+    // line = zend_read_property(default_ce, exception, "line", sizeof("line") - 1, 0 TSRMLS_CC);
+    // code = zend_read_property(default_ce, exception, "code", sizeof("code") - 1, 0 TSRMLS_CC);
 
-    MAKE_STD_ZVAL(counts);
-    array_init(counts);
-    add_assoc_long(counts, "type", Z_LVAL_P(code));
-    add_assoc_string(counts, "file", Z_STRVAL_P(file), 1);
-    add_assoc_long(counts, "line", Z_LVAL_P(line));
-    add_assoc_string(counts, "message", Z_STRVAL_P(message), 1);
+    // MAKE_STD_ZVAL(counts);
+    // array_init(counts);
+    // add_assoc_long(counts, "type", Z_LVAL_P(code));
+    // add_assoc_string(counts, "file", Z_STRVAL_P(file), 1);
+    // add_assoc_long(counts, "line", Z_LVAL_P(line));
+    // add_assoc_string(counts, "message", Z_STRVAL_P(message), 1);
 
-    add_next_index_zval(ZP_G(exceptions), counts);
+    // add_next_index_zval(ZP_G(exceptions), counts);
 
-    if (old_throw_exception_hook)
-    {
-        old_throw_exception_hook(exception TSRMLS_CC);
-    }
+    // if (old_throw_exception_hook)
+    // {
+    //     old_throw_exception_hook(exception TSRMLS_CC);
+    // }
 }
 
 /**
@@ -2202,40 +2201,40 @@ void zp_throw_exception_hook(zval *exception TSRMLS_DC)
  */
 void zp_error_cb(int type, const char *error_filename, const uint error_lineno, const char *format, va_list args)
 {
-    TSRMLS_FETCH();
+    // TSRMLS_FETCH();
 
-    char *msg;
-    va_list args_copy;
-    zval *counts;
-    char *level;
+    // char *msg;
+    // va_list args_copy;
+    // zval *counts;
+    // char *level;
 
-    va_copy(args_copy, args);
-    vspprintf(&msg, 0, format, args_copy);
-    va_end(args_copy);
+    // va_copy(args_copy, args);
+    // vspprintf(&msg, 0, format, args_copy);
+    // va_end(args_copy);
 
-    if (type == E_ERROR || type == E_PARSE || type == E_CORE_ERROR || type == E_COMPILE_ERROR || type == E_USER_ERROR || type == E_RECOVERABLE_ERROR) {
-        level = "Error";
-    }
-    else if (type == E_WARNING || type == E_CORE_WARNING || type == E_COMPILE_WARNING || type == E_USER_WARNING) {
-        level = "Warning";
-    }
-    else if (type == E_NOTICE || type == E_USER_NOTICE || type == E_STRICT || type == E_DEPRECATED || type == E_USER_DEPRECATED) {
-        level = "Notice";
-    }
+    // if (type == E_ERROR || type == E_PARSE || type == E_CORE_ERROR || type == E_COMPILE_ERROR || type == E_USER_ERROR || type == E_RECOVERABLE_ERROR) {
+    //     level = "Error";
+    // }
+    // else if (type == E_WARNING || type == E_CORE_WARNING || type == E_COMPILE_WARNING || type == E_USER_WARNING) {
+    //     level = "Warning";
+    // }
+    // else if (type == E_NOTICE || type == E_USER_NOTICE || type == E_STRICT || type == E_DEPRECATED || type == E_USER_DEPRECATED) {
+    //     level = "Notice";
+    // }
 
-    MAKE_STD_ZVAL(counts);
-    array_init(counts);
-    add_assoc_string(counts, "level", level, 1);
-    add_assoc_long(counts, "type", type);
-    add_assoc_string(counts, "file", (char *)error_filename, 1);
-    add_assoc_long(counts, "line", error_lineno);
-    add_assoc_string(counts, "message", msg, 1);
+    // MAKE_STD_ZVAL(counts);
+    // array_init(counts);
+    // add_assoc_string(counts, "level", level, 1);
+    // add_assoc_long(counts, "type", type);
+    // add_assoc_string(counts, "file", (char *)error_filename, 1);
+    // add_assoc_long(counts, "line", error_lineno);
+    // add_assoc_string(counts, "message", msg, 1);
 
-    add_next_index_zval(ZP_G(errors), counts);
+    // add_next_index_zval(ZP_G(errors), counts);
 
-    efree(msg);
+    // efree(msg);
 
-    old_error_cb(type, error_filename, error_lineno, format, args);
+    // old_error_cb(type, error_filename, error_lineno, format, args);
 }
 
 /**
