@@ -1813,23 +1813,23 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     zp_trace_callback *callback;
     HashTable *ht;
 
-    zval *trace, *tmp;
+    zval *trace, tmp;
     int i, len;
 
     /* Get the stat array */
     hp_get_function_stack(top, 2, symbol, sizeof(symbol));
 
     // 将函数参数和返回值,写入ZP_G(debug_trace)中
-    if(top->debugtrace) {
-        add_assoc_string(*top->debugtrace, "function_name", symbol, 1);
+    // if(top->debugtrace) {
+    //     add_assoc_string(*top->debugtrace, "function_name", symbol, 1);
 
-        zend_hash_index_update(
-                Z_ARRVAL_P(ZP_G(debug_trace)), 
-                (long)top->seq_no, 
-                top->debugtrace, 
-                sizeof(zval *), 
-                NULL);
-    }
+    //     zend_hash_index_update(
+    //             Z_ARRVAL_P(ZP_G(debug_trace)), 
+    //             (long)top->seq_no, 
+    //             top->debugtrace, 
+    //             sizeof(zval *), 
+    //             NULL);
+    // }
 
     /* Get end tsc counter */
     tsc_end = cycle_timer();
@@ -1839,9 +1839,8 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     ht = Z_ARRVAL_P(ZP_G(etimes));
     if (zend_hash_index_exists(ht, ZP_G(function_nums)))
     {
-        MAKE_STD_ZVAL(tmp);
-        ZVAL_LONG(tmp, wt);
-        zend_hash_index_update(ht, ZP_G(function_nums), (void *) &tmp, sizeof(zval *), NULL);
+        ZVAL_LONG(&tmp, wt);
+        zend_hash_index_update(ht, ZP_G(function_nums), &tmp);
     }
 
     // 可以考虑只记录执行时间大于 stack_threshold 微妙的函数，wt 的单位为 微妙
@@ -1865,9 +1864,9 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
 
     if (counts == NULL)
     {
-        MAKE_STD_ZVAL(counts);
+        counts = &count_val;
         array_init(counts);
-        zend_hash_update(Z_ARRVAL_P(ZP_G(stats_count)), symbol, strlen(symbol) + 1, &counts, sizeof(zval *), NULL);
+        zend_hash_str_update(Z_ARRVAL_P(ZP_G(stats_count)), symbol, strlen(symbol), counts);
     }
 
     /* Bump stats in the counts hashtable */
@@ -1908,17 +1907,8 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
  *
  * @author hzhao, kannan
  */
-#if PHP_VERSION_ID < 50500
-ZEND_DLEXPORT void hp_execute(zend_op_array *ops TSRMLS_DC)
-{
-    zend_execute_data *execute_data = EG(current_execute_data);
+ZEND_DLEXPORT void hp_execute_ex (zend_execute_data *execute_data) {
     zend_execute_data *real_execute_data = execute_data;
-#else
-ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
-{
-    zend_op_array *ops = execute_data->op_array;
-    zend_execute_data *real_execute_data = execute_data->prev_execute_data;
-#endif
     char *func = NULL;
     int hp_profile_flag = 1;
     int argNum = 0;
@@ -1932,11 +1922,7 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
 
     if (!ZP_G(enabled))
     {
-#if PHP_VERSION_ID < 50500
-        _zend_execute(ops TSRMLS_CC);
-#else
         _zend_execute_ex(execute_data TSRMLS_CC);
-#endif
         return;
     }
 
@@ -1947,21 +1933,13 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
 
     if (!func)
     {
-#if PHP_VERSION_ID < 50500
-        _zend_execute(ops TSRMLS_CC);
-#else
         _zend_execute_ex(execute_data TSRMLS_CC);
-#endif
         return;
     } 
 
     if ((ZP_G(zprof_flags) & ZPROF_FLAGS_NO_USERLAND) > 0)
     {
-#if PHP_VERSION_ID < 50500
-        _zend_execute(ops TSRMLS_CC);
-#else
         _zend_execute_ex(execute_data TSRMLS_CC);
-#endif
         efree(func);
         return;
     }
@@ -1969,60 +1947,56 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
     BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, real_execute_data);
 
     // 如果是指定的追踪函数，获取函数参数
-    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
-        argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
-        if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
-            MAKE_STD_ZVAL(function_argument);
-            array_init(function_argument);
-            for (i = 0; i < argNum; i++) {
-                argument = ZEND_CALL_ARG(real_execute_data, i + 1);
-                zp_add_array_from_ptr(argument, function_argument);
-            }
-        }
-    }
+    // if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
+    //     argNum = ZEND_CALL_NUM_ARGS(real_execute_data);
+    //     if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
+    //         MAKE_STD_ZVAL(function_argument);
+    //         array_init(function_argument);
+    //         for (i = 0; i < argNum; i++) {
+    //             argument = ZEND_CALL_ARG(real_execute_data, i + 1);
+    //             zp_add_array_from_ptr(argument, function_argument);
+    //         }
+    //     }
+    // }
 
-#if PHP_VERSION_ID < 50500
-    _zend_execute(ops TSRMLS_CC);
-#else
     _zend_execute_ex(execute_data TSRMLS_CC);
-#endif
     
     // 如果是指定的追踪函数，获取函数返回值
-    if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
-        if(hp_profile_flag && EG(return_value_ptr_ptr)) {
-            MAKE_STD_ZVAL(function_result);
-            array_init(function_result);
-            zval *result = (zval *)(*EG(return_value_ptr_ptr));
-            zp_add_array_from_ptr(result, function_result);
-        }
-    }
+    // if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
+    //     if(hp_profile_flag && EG(return_value_ptr_ptr)) {
+    //         MAKE_STD_ZVAL(function_result);
+    //         array_init(function_result);
+    //         zval *result = (zval *)(*EG(return_value_ptr_ptr));
+    //         zp_add_array_from_ptr(result, function_result);
+    //     }
+    // }
 
     // 如果有函数参数或函数返回值,记录到hp_entry_t
-    if(function_result || function_argument) {
-        MAKE_STD_ZVAL(counts);
-        array_init(counts);
+    // if(function_result || function_argument) {
+    //     MAKE_STD_ZVAL(counts);
+    //     array_init(counts);
 
-        if(function_argument) {
-            add_assoc_zval(counts, "arguments", function_argument);
-        }
-        if(function_result) {
-            add_assoc_zval(counts, "result", function_result);
-        }
+    //     if(function_argument) {
+    //         add_assoc_zval(counts, "arguments", function_argument);
+    //     }
+    //     if(function_result) {
+    //         add_assoc_zval(counts, "result", function_result);
+    //     }
 
-        // 如果调用栈顶有数据,并且该函数不在过滤列表里
-        if(ZP_G(entries) && hp_profile_flag) {
-            ZP_G(entries)->debugtrace = &counts;
-        } else {
-            // 释放arguments、result、counts
-            if(function_argument) {
-                zval_ptr_dtor(&function_argument);
-            }
-            if(function_result) {
-                zval_ptr_dtor(&function_result);
-            }
-            zval_ptr_dtor(&counts);
-        }
-    }
+    //     // 如果调用栈顶有数据,并且该函数不在过滤列表里
+    //     if(ZP_G(entries) && hp_profile_flag) {
+    //         ZP_G(entries)->debugtrace = &counts;
+    //     } else {
+    //         // 释放arguments、result、counts
+    //         if(function_argument) {
+    //             zval_ptr_dtor(&function_argument);
+    //         }
+    //         if(function_result) {
+    //             zval_ptr_dtor(&function_result);
+    //         }
+    //         zval_ptr_dtor(&counts);
+    //     }
+    // }
 
     if (ZP_G(entries))
     {
@@ -2042,19 +2016,7 @@ ZEND_DLEXPORT void hp_execute_ex(zend_execute_data *execute_data TSRMLS_DC)
  * @author hzhao, kannan
  */
 
-#if PHP_VERSION_ID < 50500
-#define EX_T(offset) (*(temp_variable *)((char *)EX(Ts) + offset))
-
-ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
-                                       int ret TSRMLS_DC)
-{
-#else
-#define EX_T(offset) (*EX_TMP_VAR(execute_data, offset))
-
-ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
-                                       struct _zend_fcall_info *fci, int ret TSRMLS_DC)
-{
-#endif
+ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data, zval *return_value) {
     char *func = NULL;
     int hp_profile_flag = 1;
     int argNum = 0;
@@ -2067,11 +2029,7 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
 
     if (!ZP_G(enabled) || (ZP_G(zprof_flags) & ZPROF_FLAGS_NO_BUILTINS) > 0)
     {
-#if PHP_VERSION_ID < 50500
-        execute_internal(execute_data, ret TSRMLS_CC);
-#else
-    execute_internal(execute_data, fci, ret TSRMLS_CC);
-#endif
+        execute_internal(execute_data, return_value TSRMLS_CC);
         return;
     }
 
@@ -2080,85 +2038,72 @@ ZEND_DLEXPORT void hp_execute_internal(zend_execute_data *execute_data,
 
     func = hp_get_function_name(execute_data TSRMLS_CC);
 
-    if (func)
-    {
+    if (func) {
         BEGIN_PROFILING(&ZP_G(entries), func, hp_profile_flag, execute_data);
 
         // 如果是指定的追踪函数，获取函数参数
-        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
-            argNum = ZEND_CALL_NUM_ARGS(execute_data);
-            if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
-                MAKE_STD_ZVAL(function_argument);
-                array_init(function_argument);
-                for (i = 0; i < argNum; i++) {
-                    argument = ZEND_CALL_ARG(execute_data, i + 1);
-                    zp_add_array_from_ptr(argument, function_argument);
-                }
-            } 
-        }
+        // if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
+        //     argNum = ZEND_CALL_NUM_ARGS(execute_data);
+        //     if (hp_profile_flag && argNum > 0) { // 该函数不在过滤列表里，并且参数个数大于0
+        //         MAKE_STD_ZVAL(function_argument);
+        //         array_init(function_argument);
+        //         for (i = 0; i < argNum; i++) {
+        //             argument = ZEND_CALL_ARG(execute_data, i + 1);
+        //             zp_add_array_from_ptr(argument, function_argument);
+        //         }
+        //     } 
+        // }
     }
 
-    if (!_zend_execute_internal)
-    {
-#if PHP_VERSION_ID < 50500
-        execute_internal(execute_data, ret TSRMLS_CC);
-#else
-        execute_internal(execute_data, fci, ret TSRMLS_CC);
-#endif
-    }
-    else
-    {
+    if (!_zend_execute_internal) {
+        execute_internal(execute_data, return_value TSRMLS_CC);
+    } else {
         /* call the old override */
-#if PHP_VERSION_ID < 50500
-        _zend_execute_internal(execute_data, ret TSRMLS_CC);
-#else
-        _zend_execute_internal(execute_data, fci, ret TSRMLS_CC);
-#endif
+        _zend_execute_internal(execute_data, return_value TSRMLS_CC);
     }
 
-    if (func)
-    {
+    if (func) {
         // 如果是指定的追踪函数，获取函数返回值
-        if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
-            if(hp_profile_flag && EG(opline_ptr) && execute_data->opline) {
-                MAKE_STD_ZVAL(function_result);
-                array_init(function_result);
-                cur_opcode = *EG(opline_ptr);
-                if (cur_opcode) {
-                    zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
-                    if (ret) {
-                        zp_add_array_from_ptr(ret, function_result);
-                    }
-                }
-            }
-        }
+        // if(ZP_G(trace_on) && ZP_G(trace_func) && strcmp(strtolower(ZP_G(trace_func)), strtolower(func)) == 0) {
+        //     if(hp_profile_flag && EG(opline_ptr) && execute_data->opline) {
+        //         MAKE_STD_ZVAL(function_result);
+        //         array_init(function_result);
+        //         cur_opcode = *EG(opline_ptr);
+        //         if (cur_opcode) {
+        //             zval *ret = zp_zval_ptr(cur_opcode->result_type, &(cur_opcode->result), execute_data TSRMLS_CC);
+        //             if (ret) {
+        //                 zp_add_array_from_ptr(ret, function_result);
+        //             }
+        //         }
+        //     }
+        // }
 
         // 如果有函数参数或函数返回值,记录到hp_entry_t
-        if(function_result || function_argument) {
-            MAKE_STD_ZVAL(counts);
-            array_init(counts);
+        // if(function_result || function_argument) {
+        //     MAKE_STD_ZVAL(counts);
+        //     array_init(counts);
 
-            if(function_argument) {
-                add_assoc_zval(counts, "arguments", function_argument);
-            }
-            if(function_result) {
-                add_assoc_zval(counts, "result", function_result);
-            }
+        //     if(function_argument) {
+        //         add_assoc_zval(counts, "arguments", function_argument);
+        //     }
+        //     if(function_result) {
+        //         add_assoc_zval(counts, "result", function_result);
+        //     }
 
-            // 如果调用栈顶有数据,并且该函数不在过滤列表里
-            if(ZP_G(entries) && hp_profile_flag) {
-                ZP_G(entries)->debugtrace = &counts;
-            } else {
-                // 释放arguments、result、counts
-                if(function_argument) {
-                    zval_ptr_dtor(&function_argument);
-                }
-                if(function_result) {
-                    zval_ptr_dtor(&function_result);
-                }
-                zval_ptr_dtor(&counts);
-            }
-        }
+        //     // 如果调用栈顶有数据,并且该函数不在过滤列表里
+        //     if(ZP_G(entries) && hp_profile_flag) {
+        //         ZP_G(entries)->debugtrace = &counts;
+        //     } else {
+        //         // 释放arguments、result、counts
+        //         if(function_argument) {
+        //             zval_ptr_dtor(&function_argument);
+        //         }
+        //         if(function_result) {
+        //             zval_ptr_dtor(&function_result);
+        //         }
+        //         zval_ptr_dtor(&counts);
+        //     }
+        // }
 
         if (ZP_G(entries))
         {
@@ -2408,73 +2353,51 @@ static zval *hp_zval_at_key(char *key, size_t size, zval *values)
  **/
 static char **hp_strings_in_zval(zval *values)
 {
-    char **result;
-    size_t count;
-    size_t ix = 0;
-    char *str;
-    uint len;
-    ulong idx;
-    int type;
+    char   **result;
+    size_t   count;
+    size_t   ix = 0;
+    zend_string *str;
+    uint   len;
+    ulong  idx;
+    int    type;
     zval **data, *val;
 
-    if (!values)
-    {
+    if (!values) {
         return NULL;
     }
 
-    if (Z_TYPE_P(values) == IS_ARRAY)
-    {
+    if (Z_TYPE_P(values) == IS_ARRAY) {
         HashTable *ht;
 
-        ht = Z_ARRVAL_P(values);
+        ht    = Z_ARRVAL_P(values);
         count = zend_hash_num_elements(ht);
 
-        if ((result =
-                 (char **)emalloc(sizeof(char *) * (count + 1))) == NULL)
-        {
+        if((result =
+                    (char**)emalloc(sizeof(char*) * (count + 1))) == NULL) {
             return result;
         }
 
-        for (zend_hash_internal_pointer_reset(ht);
-             zend_hash_has_more_elements(ht) == SUCCESS;
-             zend_hash_move_forward(ht))
-        {
+        ZEND_HASH_FOREACH_KEY_VAL(ht, idx, str, val) {
+            if (str) {
+                result[ix] = estrdup(ZSTR_VAL(str));
+            } else {
+                result[ix] = estrdup(Z_STRVAL_P(val));
+            }
+            ix++;
+        } ZEND_HASH_FOREACH_END();
 
-            type = zend_hash_get_current_key_ex(ht, &str, &len, &idx, 0, NULL);
-            if (type == HASH_KEY_IS_LONG)
-            {
-                if ((zend_hash_get_current_data(ht, (void **)&data) == SUCCESS) &&
-                    Z_TYPE_PP(data) == IS_STRING &&
-                    strcmp(Z_STRVAL_PP(data), ROOT_SYMBOL))
-                { /* do not ignore "main" */
-                    result[ix] = estrdup(Z_STRVAL_PP(data));
-                    ix++;
-                }
-            }
-            else if (type == HASH_KEY_IS_STRING)
-            {
-                result[ix] = estrdup(str);
-                ix++;
-            }
-        }
-    }
-    else if (Z_TYPE_P(values) == IS_STRING)
-    {
-        if ((result = (char **)emalloc(sizeof(char *) * 2)) == NULL)
-        {
+    } else if(Z_TYPE_P(values) == IS_STRING) {
+        if((result = (char**)emalloc(sizeof(char*) * 2)) == NULL) {
             return result;
         }
         result[0] = estrdup(Z_STRVAL_P(values));
         ix = 1;
-    }
-    else
-    {
+    } else {
         result = NULL;
     }
 
     /* NULL terminate the array */
-    if (result != NULL)
-    {
+    if (result != NULL) {
         result[ix] = NULL;
     }
 
@@ -2536,33 +2459,33 @@ PHP_FUNCTION(zprof_enable)
     ZP_G(trace_func) = NULL;
 
     // 获取GET参数，追踪指定函数参数及返回值
-    if(PG(http_globals)[TRACK_VARS_GET] && zend_hash_num_elements(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]))) 
-    {
-        // 获取trace key,只有trace key与设置的一样，才会追踪指定函数
-        trace_key = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_key", sizeof("zp_key") - 1);
+    // if(PG(http_globals)[TRACK_VARS_GET] && zend_hash_num_elements(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]))) 
+    // {
+    //     // 获取trace key,只有trace key与设置的一样，才会追踪指定函数
+    //     trace_key = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_key", sizeof("zp_key") - 1);
 
-        // 判断GET传递的zpkey与ini配置的zpkey是否一样，如果相等，打开追踪函数开关
-        if(trace_key && Z_TYPE_P(trace_key) == IS_STRING && Z_STRLEN_P(trace_key) && strcmp(ini_zpkey, Z_STRVAL_P(trace_key)) == 0) 
-        {
-            ZP_G(trace_on) = 1;
-        }
+    //     // 判断GET传递的zpkey与ini配置的zpkey是否一样，如果相等，打开追踪函数开关
+    //     if(trace_key && Z_TYPE_P(trace_key) == IS_STRING && Z_STRLEN_P(trace_key) && strcmp(ini_zpkey, Z_STRVAL_P(trace_key)) == 0) 
+    //     {
+    //         ZP_G(trace_on) = 1;
+    //     }
 
-        if(ZP_G(trace_on)) 
-        {
-            // 获取需要追踪的类名
-            trace_class = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_class", sizeof("zp_class") - 1);
+    //     if(ZP_G(trace_on)) 
+    //     {
+    //         // 获取需要追踪的类名
+    //         trace_class = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_class", sizeof("zp_class") - 1);
 
-            // 获取需要追踪的函数名
-            trace_method = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_method", sizeof("zp_method") - 1);
+    //         // 获取需要追踪的函数名
+    //         trace_method = zend_compat_hash_find_const(Z_ARRVAL_P(PG(http_globals)[TRACK_VARS_GET]), "zp_method", sizeof("zp_method") - 1);
             
-            if(trace_class && Z_TYPE_P(trace_class) == IS_STRING && Z_STRLEN_P(trace_class) && trace_method && Z_TYPE_P(trace_method) == IS_STRING && Z_STRLEN_P(trace_method)) {
-                ZP_G(trace_func) = hp_concat_char(Z_STRVAL_P(trace_class), Z_STRLEN_P(trace_class), Z_STRVAL_P(trace_method), Z_STRLEN_P(trace_method), "::", 2);
-            } else if(trace_method && Z_TYPE_P(trace_method) == IS_STRING && Z_STRLEN_P(trace_method)) {
-                ZP_G(trace_func) = estrdup(Z_STRVAL_P(trace_method));
-            }
+    //         if(trace_class && Z_TYPE_P(trace_class) == IS_STRING && Z_STRLEN_P(trace_class) && trace_method && Z_TYPE_P(trace_method) == IS_STRING && Z_STRLEN_P(trace_method)) {
+    //             ZP_G(trace_func) = hp_concat_char(Z_STRVAL_P(trace_class), Z_STRLEN_P(trace_class), Z_STRVAL_P(trace_method), Z_STRLEN_P(trace_method), "::", 2);
+    //         } else if(trace_method && Z_TYPE_P(trace_method) == IS_STRING && Z_STRLEN_P(trace_method)) {
+    //             ZP_G(trace_func) = estrdup(Z_STRVAL_P(trace_method));
+    //         }
 
-        }
-    }
+    //     }
+    // }
 
     hp_begin(zprof_flags TSRMLS_CC);
 }
@@ -2587,7 +2510,7 @@ PHP_FUNCTION(zprof_disable)
     array_init(return_value);
 
     add_assoc_zval(return_value, "profile", ZP_G(stats_count));
-    add_assoc_zval(return_value, "debugtrace", ZP_G(debug_trace));
+    //add_assoc_zval(return_value, "debugtrace", ZP_G(debug_trace));
     //add_assoc_zval(return_value, "exception", ZP_G(exceptions));
     //add_assoc_zval(return_value, "error", ZP_G(errors));
     add_assoc_zval(return_value, "trace", ZP_G(trace));
