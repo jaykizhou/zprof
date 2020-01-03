@@ -731,7 +731,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         * 执行 select database() 获取当前数据库名，一个项目如果连接了多个数据库，需要知道当前SQL语句在哪个数据库上执行的
         * 下面语句类似于: $msyqli->query('select database()') or $pdo->query('select database()')
         */
-        if(data->This) 
+        if(data) 
         {
             ce = Z_OBJCE_P(&data->This);
             zend_call_method_with_1_params(&data->This, ce, NULL, "query", mysql_result, &pa);
