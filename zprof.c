@@ -56,6 +56,7 @@
 #define _DECLARE_ZVAL(name) zval name## _v; zval * name = &name## _v
 #define _ALLOC_INIT_ZVAL(name) ZVAL_NULL(name)
 #define hp_ptr_dtor(val) zval_ptr_dtor(val)
+#define zp_pcre_match_impl(pce, zv, retval, parts, global, use_flags, flags, offset) php_pcre_match_impl(pce, Z_STRVAL_P(subject), Z_STRLEN_P(subject), return_value, parts, global, use_flags, flags, offset)
 
 typedef size_t strsize_t;
 /* removed/uneeded macros */
@@ -578,7 +579,7 @@ zend_string *zp_pcre_match(char *pattern, strsize_t len, zval *subject TSRMLS_DC
     _ALLOC_INIT_ZVAL(subpats);
 
     pce->refcount++;
-    tw_pcre_match_impl(pce, subject, return_value, subpats, 0, 1, 0, 0);
+    zp_pcre_match_impl(pce, subject, return_value, subpats, 0, 1, 0, 0);
     pce->refcount--;
 
     if (Z_LVAL_P(return_value) > 0 && Z_TYPE_P(subpats) == IS_ARRAY) {
@@ -676,7 +677,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, row, 1, params, 1, NULL))
         {
-            zval_ptr_dtor(&mysql_result);
+            zval_ptr_dtor(mysql_result);
             return ;
         }
 
@@ -730,17 +731,17 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         * 执行 select database() 获取当前数据库名，一个项目如果连接了多个数据库，需要知道当前SQL语句在哪个数据库上执行的
         * 下面语句类似于: $msyqli->query('select database()') or $pdo->query('select database()')
         */
-        if(data->object) 
+        if(data->This) 
         {
-            ce = Z_OBJCE_P(data->object);
-            zend_call_method_with_1_params(&data->object, ce, NULL, "query", mysql_result, &pa);
+            ce = Z_OBJCE_P(&data->This);
+            zend_call_method_with_1_params(&data->This, ce, NULL, "query", mysql_result, &pa);
         }
 
         // $mysql->query 有结果，再调用$mysql_result->fetch_assoc 获取具体返回数据
         if(strcmp(symbol, "mysqli::query") == 0 && mysql_result)
         {
             ce = Z_OBJCE_P(mysql_result);
-            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch_assoc", row);
+            zend_call_method_with_0_params(mysql_result, ce, NULL, "fetch_assoc", row);
 
             // $mysql_result->fetch_assoc 有返回结果
             if(row) {
@@ -753,7 +754,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         else if(mysql_result)
         {
             ce = Z_OBJCE_P(mysql_result);
-            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch", row);
+            zend_call_method_with_0_params(mysql_result, ce, NULL, "fetch", row);
 
             // $PDOStatement->fetch 有返回结果
             if(row) {
