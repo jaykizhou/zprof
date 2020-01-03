@@ -622,7 +622,7 @@ void zp_trace_callback_sql_commit(char *symbol, zend_execute_data *data TSRMLS_D
 
 void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRMLS_DC)
 {
-    zval *argument_element, *link, *mysql_result = NULL, *pa, *counts, *row = NULL, *dbname = NULL; 
+    zval *argument_element, *link, *mysql_result = NULL, pa, counts, *row = NULL, *dbname = NULL; 
     zend_class_entry *ce;
     char *sc = "select database() as zp_dbname;";
     char *key = "zp_dbname";
@@ -630,9 +630,9 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
     char arKey[] = "sql";
     uint nKeyLength = 4;
-    zval **tmpzval;
+    zval *tmpzval;
     HashTable *ht;
-    zval *sqlArray;
+    zval sqlArray;
     zval fname;
 
     if (strcmp(symbol, "mysqli_query") == 0) {
@@ -652,28 +652,29 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         }
 
         // 设置参数，执行的 sql，会导致 profiler 多记录一次数据库函数调用
-        MAKE_STD_ZVAL(pa);
-        ZVAL_STRING(pa, sc);
+        ZVAL_STRING(&pa, sc);
 
         // 执行 mysqli_query 获取当前执行的数据库名
-        zval **pa1[2];
-        pa1[0] = &link;
-        pa1[1] = &pa;
+        zval pa1[2];
+        ZVAL_RES(&pa1[0], Z_RES_P(link));
+        pa1[1] = pa;
 
         ZVAL_STRING(&fname, "mysqli_query");
 
-        if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, &mysql_result, 2, pa1, 1, NULL TSRMLS_CC)) 
+        if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, mysql_result, 2, pa1, 1, NULL)) 
         {
             zval_ptr_dtor(&pa);
             return ;
         }
 
         // 如果 mysqli_query 返回结果，执行mysqli_fetch_assoc 获取具体返回数据
-        zval **params[1];
-        params[0] = &mysql_result;
+        //zval **params[1];
+        //params[0] = &mysql_result;
+        zval params[1];
+        ZVAL_RES(&params[0], Z_RES_P(mysql_result));
         ZVAL_STRING(&fname, "mysqli_fetch_assoc");
 
-        if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, &row, 1, params, 1, NULL TSRMLS_CC))
+        if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, row, 1, params, 1, NULL))
         {
             zval_ptr_dtor(&mysql_result);
             return ;
@@ -685,14 +686,13 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
             dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
         }
 
-        MAKE_STD_ZVAL(counts);
-        array_init(counts);
-        add_assoc_string(counts, "sql", Z_STRVAL_P(argument_element));
-        add_assoc_long(counts, "no", ZP_G(function_nums));
+        array_init(&counts);
+        add_assoc_string(&counts, "sql", Z_STRVAL_P(argument_element));
+        add_assoc_long(&counts, "no", ZP_G(function_nums));
 
         if(dbname && Z_TYPE_P(dbname) == IS_STRING) 
         {
-            add_assoc_string(counts, "dbname", Z_STRVAL_P(dbname));
+            add_assoc_string(&counts, "dbname", Z_STRVAL_P(dbname));
         }
 
         // 释放空间
@@ -723,7 +723,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         }
 
         // 设置参数，执行的sql,会导致profiler多记录一次数据库函数调用
-        MAKE_STD_ZVAL(pa);
+        //MAKE_STD_ZVAL(pa);
         ZVAL_STRING(pa, sc);
 
         /**
@@ -763,14 +763,13 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
             zval_ptr_dtor(&mysql_result);
         }
 
-        MAKE_STD_ZVAL(counts);
-        array_init(counts);
-        add_assoc_string(counts, "sql", Z_STRVAL_P(argument_element));
-        add_assoc_long(counts, "no", ZP_G(function_nums));
+        array_init(&counts);
+        add_assoc_string(&counts, "sql", Z_STRVAL_P(argument_element));
+        add_assoc_long(&counts, "no", ZP_G(function_nums));
 
         if(dbname && Z_TYPE_P(dbname) == IS_STRING) 
         {
-            add_assoc_string(counts, "dbname", Z_STRVAL_P(dbname));
+            add_assoc_string(&counts, "dbname", Z_STRVAL_P(dbname));
         }
         
         // 释放$mysql_result->fetch_assoc 结果空间，
@@ -785,22 +784,21 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     }
 
     // 记录当前 sql 函数的序号
-    add_index_long(ZP_G(etimes), ZP_G(function_nums), 0);  
+    add_index_long(&ZP_G(etimes), ZP_G(function_nums));  
 
     // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
     ht = Z_ARRVAL_P(&ZP_G(trace));
-    if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
+    if((tmpzval = zend_hash_str_find(ht, arKey, nKeyLength)) == NULL) {
         // $sql = [];
-        MAKE_STD_ZVAL(sqlArray);
-        array_init(sqlArray);
+        array_init(&sqlArray);
         // $trace['sql'] = $sql;
-        add_assoc_zval(&ZP_G(trace), arKey, sqlArray);   
+        add_assoc_zval(&ZP_G(trace), arKey, &sqlArray);   
     } else {
         sqlArray = *tmpzval;
     }
 
     // 类似于：$trace['sql'][] = $count;
-    add_next_index_zval(sqlArray, counts);
+    add_next_index_zval(&sqlArray, &counts);
 
     return;
 }
@@ -817,10 +815,10 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     long idx, *idx_ptr;
     zval fname, *opt;
     zval *retval_ptr;
-    zval *counts;
+    zval counts;
     HashTable *ht;
-    zval *curlArray;
-    zval **tmpzval;
+    zval curlArray;
+    zval *tmpzval;
     zval params[1];
 
     char arKey[] = "curl";
@@ -833,7 +831,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
 
     ZVAL_STRING(&fname, "curl_getinfo");
 
-    ZVAL_RES(&params[0], Z_RES_P(curl_handle));
+    ZVAL_RES(&params[0], Z_RES_P(argument));
 
     if (SUCCESS == call_user_function_ex(EG(function_table), NULL, &fname, retval_ptr, 1, params, 1, NULL)) {
 
@@ -841,28 +839,28 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
 
         if (option && Z_TYPE_P(option) == IS_STRING)
         {
-            MAKE_STD_ZVAL(counts);
-            array_init(counts);
-            add_assoc_string(counts, "url", Z_STRVAL_P(option));
-            add_assoc_long(counts, "no", ZP_G(function_nums));
+            //MAKE_STD_ZVAL(counts);
+            array_init(&counts);
+            add_assoc_string(&counts, "url", Z_STRVAL_P(option));
+            add_assoc_long(&counts, "no", ZP_G(function_nums));
 
             // 记录当前 sql 函数的序号
             add_index_long(&ZP_G(etimes), ZP_G(function_nums));  
 
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
             ht = Z_ARRVAL_P(&ZP_G(trace));
-            if(zend_hash_find(ht, arKey, nKeyLength, (void **) &tmpzval) == FAILURE) {
+            if((tmpzval = zend_hash_str_find(ht, arKey, nKeyLength)) == NULL) {
                 // $curl = [];
-                MAKE_STD_ZVAL(curlArray);
-                array_init(curlArray);
+                //MAKE_STD_ZVAL(curlArray);
+                array_init(&curlArray);
                 // $trace['curl'] = $curl;
-                add_assoc_zval(&ZP_G(trace), arKey, curlArray);   
+                add_assoc_zval(&ZP_G(trace), arKey, &curlArray);   
             } else {
                 curlArray = *tmpzval;
             }
 
             // 类似于：$trace['curl'][] = $count;
-            add_next_index_zval(curlArray, counts);
+            add_next_index_zval(&curlArray, &counts);
         }
 
         zval_ptr_dtor(retval_ptr);
@@ -1124,7 +1122,7 @@ void hp_init_trace_callbacks(TSRMLS_D)
     ZP_G(trace_callbacks) = NULL;
 
     ALLOC_HASHTABLE(ZP_G(trace_callbacks));
-    zend_hash_init(ZP_G(trace_callbacks), 255, NULL, (dtor_func_t *)hp_free_trace_cb, 0);
+    zend_hash_init(ZP_G(trace_callbacks), 255, NULL, (dtor_func_t)hp_free_trace_cb, 0);
 
     //cb = zp_trace_callback_file_get_contents;
     //register_trace_callback("file_get_contents", cb);
