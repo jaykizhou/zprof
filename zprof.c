@@ -578,9 +578,9 @@ zend_string *zp_pcre_match(char *pattern, strsize_t len, zval *subject TSRMLS_DC
     _ALLOC_INIT_ZVAL(return_value);
     _ALLOC_INIT_ZVAL(subpats);
 
-    pce->refcount++;
+    //pce->refcount++;
     zp_pcre_match_impl(pce, subject, return_value, subpats, 0, 1, 0, 0);
-    pce->refcount--;
+    //pce->refcount--;
 
     if (Z_LVAL_P(return_value) > 0 && Z_TYPE_P(subpats) == IS_ARRAY) {
         match = zend_compat_hash_index_find(Z_ARRVAL_P(subpats), 1);
