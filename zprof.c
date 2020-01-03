@@ -64,7 +64,7 @@ typedef size_t strsize_t;
 #define register_trace_callback(function_name, cb)                                                                              \
     do {                                                                                                                        \
         zend_hash_str_update_mem(ZP_G(trace_callbacks), function_name, sizeof(function_name), &cb, sizeof(zp_trace_callback *));  \
-        hp_init_trace_callbacks_filter(function_name TSRMLS_CC);                                                                \   
+        hp_init_trace_callbacks_filter(function_name TSRMLS_CC);                                                                \
     } while(0)
 
 static zend_always_inline zval *zend_compat_hash_find_const(HashTable *ht, const char *key, strsize_t len)
@@ -700,12 +700,12 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         if(mysql_result) 
         {
-            zval_ptr_dtor(&mysql_result);
+            zval_ptr_dtor(mysql_result);
         }
 
         if(row) 
         {
-            zval_ptr_dtor(&row);
+            zval_ptr_dtor(row);
         }
     } else {
         // 对象模式执行，获取执行的SQL语句
@@ -724,7 +724,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         // 设置参数，执行的sql,会导致profiler多记录一次数据库函数调用
         //MAKE_STD_ZVAL(pa);
-        ZVAL_STRING(pa, sc);
+        ZVAL_STRING(&pa, sc);
 
         /**
         * 执行 select database() 获取当前数据库名，一个项目如果连接了多个数据库，需要知道当前SQL语句在哪个数据库上执行的
@@ -733,34 +733,34 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         if(data->object) 
         {
             ce = Z_OBJCE_P(data->object);
-            zend_call_method_with_1_params(&data->object, ce, NULL, "query", &mysql_result, pa);
+            zend_call_method_with_1_params(&data->object, ce, NULL, "query", mysql_result, &pa);
         }
 
         // $mysql->query 有结果，再调用$mysql_result->fetch_assoc 获取具体返回数据
         if(strcmp(symbol, "mysqli::query") == 0 && mysql_result)
         {
             ce = Z_OBJCE_P(mysql_result);
-            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch_assoc", &row);
+            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch_assoc", row);
 
             // $mysql_result->fetch_assoc 有返回结果
             if(row) {
                 dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
             }
 
-            zval_ptr_dtor(&mysql_result);
+            zval_ptr_dtor(mysql_result);
         }
         // $pdo->query 有结果，再调用$PDOStatement->fetch 获取具体返回数据
         else if(mysql_result)
         {
             ce = Z_OBJCE_P(mysql_result);
-            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch", &row);
+            zend_call_method_with_0_params(&mysql_result, ce, NULL, "fetch", row);
 
             // $PDOStatement->fetch 有返回结果
             if(row) {
                 dbname = zend_compat_hash_find_const(Z_ARRVAL_P(row), key, keylen);
             }
 
-            zval_ptr_dtor(&mysql_result);
+            zval_ptr_dtor(mysql_result);
         }
 
         array_init(&counts);
@@ -776,7 +776,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         // 如果在上面释放，会导致dbname获取不到数据库名
         if(row) 
         {
-            zval_ptr_dtor(&row);
+            zval_ptr_dtor(row);
         }
 
         // 释放参数的空间
@@ -784,7 +784,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     }
 
     // 记录当前 sql 函数的序号
-    add_index_long(&ZP_G(etimes), ZP_G(function_nums));  
+    add_index_long(&ZP_G(etimes), ZP_G(function_nums), 0);  
 
     // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
     ht = Z_ARRVAL_P(&ZP_G(trace));
@@ -845,7 +845,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             add_assoc_long(&counts, "no", ZP_G(function_nums));
 
             // 记录当前 sql 函数的序号
-            add_index_long(&ZP_G(etimes), ZP_G(function_nums));  
+            add_index_long(&ZP_G(etimes), ZP_G(function_nums), 0);  
 
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
             ht = Z_ARRVAL_P(&ZP_G(trace));
