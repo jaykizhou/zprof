@@ -64,7 +64,7 @@ typedef size_t strsize_t;
 
 #define register_trace_callback(function_name, cb)                                                                              \
     do {                                                                                                                         \
-        zend_hash_str_update_mem(ZP_G(trace_callbacks), function_name, strlen(function_name), &cb, sizeof(zp_trace_callback)); \                                                                                                                     \
+        zend_hash_str_update_mem(ZP_G(trace_callbacks), function_name, strlen(function_name), &cb, sizeof(zp_trace_callback)); \
         hp_init_trace_callbacks_filter(function_name TSRMLS_CC);                                                                \
     } while(0)
 
@@ -1125,7 +1125,7 @@ void hp_init_trace_callbacks(TSRMLS_D)
     ZP_G(trace_callbacks) = NULL;
 
     ALLOC_HASHTABLE(ZP_G(trace_callbacks));
-    zend_hash_init(ZP_G(trace_callbacks), 255, NULL, (dtor_func_t)hp_free_trace_cb, 0);
+    zend_hash_init(ZP_G(trace_callbacks), 255, NULL, hp_free_trace_cb, 0);
 
     //cb = zp_trace_callback_file_get_contents;
     //register_trace_callback("file_get_contents", cb);
