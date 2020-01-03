@@ -63,8 +63,8 @@ typedef size_t strsize_t;
 #define TSRMLS_CC
 
 #define register_trace_callback(function_name, cb)                                                                              \
-    do {                                                                                                                        \
-        zend_hash_str_update_mem(ZP_G(trace_callbacks), function_name, sizeof(function_name), &cb, sizeof(zp_trace_callback *));  \
+    do {                                                                                                                         \
+        zend_hash_str_update_mem(ZP_G(trace_callbacks), function_name, strlen(function_name), &cb, sizeof(zp_trace_callback)); \                                                                                                                     \
         hp_init_trace_callbacks_filter(function_name TSRMLS_CC);                                                                \
     } while(0)
 
@@ -1099,7 +1099,9 @@ static inline int hp_function_map_filter_collision(hp_function_map *map, uint8 h
     return map->filter[INDEX_2_BYTE(hash)] & mask;
 }
 
-static inline void hp_free_trace_cb(void *p) {}
+static inline void hp_free_trace_cb(zval *zv) {
+    efree(Z_PTR_P(zv));
+}
 
 int hp_trace_callbacks_filter_exist(uint8 hash TSRMLS_DC)
 {
