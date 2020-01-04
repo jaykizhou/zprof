@@ -815,7 +815,8 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     zval *option;
     long idx, *idx_ptr;
     zval fname, *opt;
-    zval *retval_ptr;
+    zval retval_tmp;
+    zval *retval_ptr = &retval_tmp;
     zval counts;
     HashTable *ht;
     zval curlArray;
@@ -823,7 +824,7 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     zval params[1];
 
     char arKey[] = "curl";
-    uint nKeyLength = 5;
+    uint nKeyLength = 4;
 
     if (argument == NULL || Z_TYPE_P(argument) != IS_RESOURCE)
     {
@@ -840,7 +841,6 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
 
         if (option && Z_TYPE_P(option) == IS_STRING)
         {
-            //MAKE_STD_ZVAL(counts);
             array_init(&counts);
             add_assoc_string(&counts, "url", Z_STRVAL_P(option));
             add_assoc_long(&counts, "no", ZP_G(function_nums));
@@ -852,7 +852,6 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
             ht = Z_ARRVAL_P(&ZP_G(trace));
             if((tmpzval = zend_hash_str_find(ht, arKey, nKeyLength)) == NULL) {
                 // $curl = [];
-                //MAKE_STD_ZVAL(curlArray);
                 array_init(&curlArray);
                 // $trace['curl'] = $curl;
                 add_assoc_zval(&ZP_G(trace), arKey, &curlArray);   
