@@ -665,9 +665,11 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, mysql_result, 2, pa1, 1, NULL)) 
         {
+            zend_string_release(Z_STR(fname));
             zval_ptr_dtor(&pa);
             return ;
         }
+        zend_string_release(Z_STR(fname));
 
         // 如果 mysqli_query 返回结果，执行mysqli_fetch_assoc 获取具体返回数据
         //zval **params[1];
@@ -678,9 +680,11 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         if (SUCCESS != call_user_function_ex(EG(function_table), NULL, &fname, row, 1, params, 1, NULL))
         {
+            zend_string_release(Z_STR(fname));
             zval_ptr_dtor(mysql_result);
             return ;
         }
+        zend_string_release(Z_STR(fname));
 
         // mysqli_fetch_assoc 有返回结果
         if(row)
@@ -725,7 +729,6 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
         }
 
         // 设置参数，执行的sql,会导致profiler多记录一次数据库函数调用
-        //MAKE_STD_ZVAL(pa);
         ZVAL_STRING(&pa, sc);
 
         /**
@@ -801,8 +804,6 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
     // 类似于：$trace['sql'][] = $count;
     add_next_index_zval(&sqlArray, &counts);
-
-    zend_string_release(Z_STR(fname));
 
     return;
 }
