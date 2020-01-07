@@ -1140,6 +1140,8 @@ void hp_init_trace_callbacks(TSRMLS_D)
 #if HAVE_PDO
     register_trace_callback("PDO::exec", cb);
     register_trace_callback("PDO::query", cb);
+    register_trace_callback("Phalcon\\Db\\Adapter\\Pdo::exec", cb);
+    register_trace_callback("Phalcon\\Db\\Adapter\\Pdo::query", cb);
 #endif
     //register_trace_callback("mysql_query", cb);
     register_trace_callback("mysqli_query", cb);
