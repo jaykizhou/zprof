@@ -695,7 +695,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         array_init(&counts);
         add_assoc_string(&counts, "sql", Z_STRVAL_P(argument_element));
-        add_assoc_long(&counts, "no", fnum;
+        add_assoc_long(&counts, "no", fnum);
 
         if(dbname && Z_TYPE_P(dbname) == IS_STRING) 
         {
