@@ -636,6 +636,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     HashTable *ht;
     zval sqlArray;
     zval fname;
+    int fnum = ZP_G(function_nums);
 
     if (strcmp(symbol, "mysqli_query") == 0) {
         // 面向过程模式获取sql语句
@@ -694,7 +695,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         array_init(&counts);
         add_assoc_string(&counts, "sql", Z_STRVAL_P(argument_element));
-        add_assoc_long(&counts, "no", ZP_G(function_nums));
+        add_assoc_long(&counts, "no", fnum;
 
         if(dbname && Z_TYPE_P(dbname) == IS_STRING) 
         {
@@ -770,7 +771,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
 
         array_init(&counts);
         add_assoc_string(&counts, "sql", Z_STRVAL_P(argument_element));
-        add_assoc_long(&counts, "no", ZP_G(function_nums));
+        add_assoc_long(&counts, "no", fnum);
 
         if(dbname && Z_TYPE_P(dbname) == IS_STRING) 
         {
@@ -789,7 +790,7 @@ void zp_trace_callback_sql_functions(char *symbol, zend_execute_data *data TSRML
     }
 
     // 记录当前 sql 函数的序号
-    add_index_long(&ZP_G(etimes), ZP_G(function_nums), 0);  
+    add_index_long(&ZP_G(etimes), fnum, 0);  
 
     // 判断 ZP_G(trace) 数组中是否有 sql，没有则生成一个
     ht = Z_ARRVAL_P(&ZP_G(trace));
@@ -830,6 +831,8 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
     char arKey[] = "curl";
     uint nKeyLength = 4;
 
+    int fnum = ZP_G(function_nums);
+
     if (argument == NULL || Z_TYPE_P(argument) != IS_RESOURCE)
     {
         return;
@@ -847,10 +850,10 @@ void zp_trace_callback_curl_exec(char *symbol, zend_execute_data *data TSRMLS_DC
         {
             array_init(&counts);
             add_assoc_string(&counts, "url", Z_STRVAL_P(option));
-            add_assoc_long(&counts, "no", ZP_G(function_nums));
+            add_assoc_long(&counts, "no", fnum);
 
             // 记录当前 sql 函数的序号
-            add_index_long(&ZP_G(etimes), ZP_G(function_nums), 0);  
+            add_index_long(&ZP_G(etimes), fnum, 0);  
 
             // 判断 ZP_G(trace) 数组中是否有 curl，没有则生成一个
             ht = Z_ARRVAL_P(&ZP_G(trace));
@@ -1824,7 +1827,7 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
     HashTable *ht;
 
     zval *trace, tmp;
-    int i, len;
+    int i, len, fnum;
 
     /* Get the stat array */
     hp_get_function_stack(top, 2, symbol, sizeof(symbol));
@@ -1847,10 +1850,11 @@ void hp_mode_hier_endfn_cb(hp_entry_t **entries, zend_execute_data *data TSRMLS_
 
     // 记录 curl、sql 函数的执行时间
     ht = Z_ARRVAL_P(&ZP_G(etimes));
-    if (zend_hash_index_exists(ht, ZP_G(function_nums)))
+    fnum = top->seq_no;
+    if (zend_hash_index_exists(ht, fnum))
     {
         ZVAL_LONG(&tmp, wt);
-        zend_hash_index_update(ht, ZP_G(function_nums), &tmp);
+        zend_hash_index_update(ht, fnum, &tmp);
     }
 
     // 可以考虑只记录执行时间大于 stack_threshold 微妙的函数，wt 的单位为 微妙
